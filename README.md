@@ -1,2 +1,0 @@
-# JournalAI
-JournalAI
