@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -10,7 +10,9 @@ import {
   Dimensions, 
   Platform, 
   Modal,
-  TouchableOpacity
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Palette } from '../../constants/Colors';
@@ -96,7 +98,7 @@ const INITIAL_NOTES: NoteItem[] = [
 ];
 
 // Filtro 'Cifrati' rimosso in quanto ridondante (tutto è cifrato)
-const FILTER_TABS = ['Tutti', 'AI Insights', 'Preferiti'];
+const FILTER_TABS = ['Tutti', 'Secondo Cervello', 'Preferiti'];
 
 export default function DashboardScreen() {
   const systemColorScheme = useColorScheme();
@@ -124,6 +126,9 @@ export default function DashboardScreen() {
   const [micFeedback, setMicFeedback] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<any>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [ragResponse, setRagResponse] = useState<string | null>(null);
+  const [isRAGLoading, setIsRAGLoading] = useState(false);
+  const [ragQuery, setRagQuery] = useState('');
 
   // Stati per la visualizzazione/modifica nota esistente
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
@@ -529,10 +534,88 @@ export default function DashboardScreen() {
     }
   };
 
+  // Estrae tutti i tag e conta quante note li possiedono
+  const tagList = useMemo(() => {
+    const counts: Record<string, number> = {};
+    processedNotes.forEach(note => {
+      if (isUnlocked && note.tags) {
+        note.tags.forEach(tag => {
+          if (tag && tag.trim() !== '') {
+            counts[tag] = (counts[tag] || 0) + 1;
+          }
+        });
+      }
+    });
+    return Object.keys(counts).map(name => ({
+      name,
+      count: counts[name]
+    })).sort((a, b) => b.count - a.count);
+  }, [processedNotes, isUnlocked]);
+
+  // Generatore di colori deterministici per i macro-tag
+  const getTagColor = (tagName: string) => {
+    const colors = [
+      { light: '#e8f5e9', dark: '#1b2e24' }, // Salvia
+      { light: '#e3f2fd', dark: '#162b3d' }, // Azzurro
+      { light: '#f3e5f5', dark: '#2d1b33' }, // Lilla
+      { light: '#fff3e0', dark: '#3d2516' }, // Pesca
+      { light: '#ffebee', dark: '#2d1a1a' }, // Rosa
+    ];
+    let hash = 0;
+    for (let i = 0; i < tagName.length; i++) {
+      hash = tagName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const idx = Math.abs(hash) % colors.length;
+    return colors[idx];
+  };
+
+  const handleRAGSearch = async (queryText: string) => {
+    if (!queryText.trim()) return;
+    setIsRAGLoading(true);
+    setRagResponse(null);
+
+    try {
+      const aiConfig = await SecureStorage.getAIConfig();
+      const notesForRAG = processedNotes.map(n => ({
+        title: n.title,
+        content: n.content || n.excerpt
+      }));
+
+      const reply = await AIEngine.chatWithNotes(queryText, notesForRAG, aiConfig);
+      setRagResponse(reply);
+    } catch (err: any) {
+      console.error(err);
+      setRagResponse(`Errore nell'interrogazione del Secondo Cervello: ${err.message || err}`);
+    } finally {
+      setIsRAGLoading(false);
+    }
+  };
+
+  const handleTagClick = (tagName: string) => {
+    setRagQuery(tagName);
+    handleRAGSearch(tagName);
+  };
+
+  // Reset risposta RAG quando cambia il filtro
+  useEffect(() => {
+    setRagResponse(null);
+  }, [selectedFilter]);
+
+  // Funzione per cancellare il testo inserito
+  const handleClearSearch = () => {
+    if (selectedFilter === 'Secondo Cervello') {
+      setRagQuery('');
+      setRagResponse(null);
+      setIsRAGLoading(false);
+    } else {
+      setSearchQuery('');
+    }
+  };
+
   // Logica di Filtraggio delle Note in base al tab selezionato e alla barra di ricerca
   const filteredNotes = processedNotes.filter((note) => {
     // 1. Filtro per Tab attiva
-    if (selectedFilter === 'AI Insights') {
+    if (selectedFilter === 'Secondo Cervello') {
       // Mostra solo le note analizzate con successo dall'IA (che possiedono tag e non sono in corso di analisi)
       if (note.isAnalyzing || note.tags.length === 0 || note.tags.includes('Locale')) {
         return false;
@@ -543,8 +626,9 @@ export default function DashboardScreen() {
     }
 
     // 2. Filtro di ricerca testuale (titolo o riassunto)
-    if (searchQuery.trim() !== '') {
-      const query = searchQuery.toLowerCase();
+    const activeQuery = selectedFilter === 'Secondo Cervello' ? ragQuery : searchQuery;
+    if (activeQuery.trim() !== '') {
+      const query = activeQuery.toLowerCase();
       const matchTitle = note.title.toLowerCase().includes(query);
       const matchContent = (note.content || '').toLowerCase().includes(query);
       return matchTitle || matchContent;
@@ -707,13 +791,37 @@ export default function DashboardScreen() {
         <View style={[styles.searchBar, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
           <Text style={[styles.searchIcon, { color: currentTheme.textSecondary }]}>🔍</Text>
           <TextInput
-            placeholder={isUnlocked ? "Cerca nei tuoi quaderni..." : "Sblocca per cercare..."}
+            placeholder={isUnlocked ? (selectedFilter === 'Secondo Cervello' ? "Chiedi al Secondo Cervello..." : "Cerca nei tuoi quaderni...") : "Sblocca per cercare..."}
             placeholderTextColor={currentTheme.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={selectedFilter === 'Secondo Cervello' ? ragQuery : searchQuery}
+            onChangeText={(text) => {
+              if (selectedFilter === 'Secondo Cervello') {
+                setRagQuery(text);
+                if (text.trim() === '') {
+                  setRagResponse(null);
+                }
+              } else {
+                setSearchQuery(text);
+              }
+            }}
             editable={isUnlocked}
+            returnKeyType={selectedFilter === 'Secondo Cervello' ? 'search' : 'default'}
+            onSubmitEditing={() => {
+              if (selectedFilter === 'Secondo Cervello') {
+                handleRAGSearch(ragQuery);
+              }
+            }}
             style={[styles.searchInput, { color: currentTheme.textPrimary }]}
           />
+          {((selectedFilter === 'Secondo Cervello' ? ragQuery : searchQuery).trim().length > 0) && (
+            <TouchableOpacity 
+              onPress={handleClearSearch} 
+              style={styles.clearSearchBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: currentTheme.textSecondary, fontSize: 18, fontWeight: '600' }}>×</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Tab Filters */}
@@ -751,21 +859,107 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* Grid of Notes */}
-      <FlatList
-        data={filteredNotes}
-        renderItem={renderCard}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.gridContainer}
-        columnWrapperStyle={styles.row}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={{ color: currentTheme.textSecondary }}>Nessuna nota trovata con i filtri selezionati.</Text>
-          </View>
+      {/* Helper per la risposta RAG */}
+      {(() => {
+        const renderRAGResponseHeader = () => {
+          if (!isRAGLoading && !ragResponse) return null;
+
+          return (
+            <View style={styles.ragResponseWrapper}>
+              <View style={styles.ragHeaderTitleRow}>
+                <Text style={styles.ragHeaderTitle}>🧠 Risposta del Secondo Cervello</Text>
+                {isRAGLoading && <ActivityIndicator size="small" color="#93c5fd" />}
+              </View>
+              
+              {isRAGLoading ? (
+                <Text style={styles.ragLoadingText}>Interrogando il Secondo Cervello...</Text>
+              ) : (
+                <Text style={styles.ragResponseText}>{ragResponse}</Text>
+              )}
+              
+              {!isRAGLoading && (
+                <Text style={[styles.ragContextTitle, { color: currentTheme.textSecondary }]}>
+                  Appunti usati come contesto:
+                </Text>
+              )}
+            </View>
+          );
+        };
+
+        if (selectedFilter === 'Secondo Cervello' && !ragQuery.trim() && !isRAGLoading && !ragResponse) {
+          return (
+            /* Stato Inattivo: Griglia di Macro-Tag */
+            <ScrollView contentContainerStyle={styles.insightsDashboardContainer} showsVerticalScrollIndicator={false}>
+              <View style={styles.insightsDashboard}>
+                <Text style={[styles.insightsTitle, { color: currentTheme.textPrimary }]}>
+                  🧠 Secondo Cervello
+                </Text>
+                <Text style={[styles.insightsDesc, { color: currentTheme.textSecondary }]}>
+                  Usa il RAG locale per interrogare i tuoi appunti cifrati. Poni una domanda nella barra di ricerca, oppure seleziona uno dei macro-temi ricavati dall'IA.
+                </Text>
+                
+                {tagList.length === 0 ? (
+                  <View style={[styles.emptyInsights, { borderColor: currentTheme.border, backgroundColor: currentTheme.surface }]}>
+                    <Text style={{ color: currentTheme.textSecondary, textAlign: 'center', fontSize: 13 }}>
+                      Nessun insight disponibile. L'IA analizzerà automaticamente le note appena create per estrarne i tag principali.
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.tagGrid}>
+                    {tagList.map((tag) => {
+                      const colors = getTagColor(tag.name);
+                      const tagBg = isDark ? colors.dark : colors.light;
+                      const tagBorder = currentTheme.border;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={tag.name}
+                          onPress={() => handleTagClick(tag.name)}
+                          activeOpacity={0.7}
+                          style={[
+                            styles.tagCard,
+                            {
+                              backgroundColor: tagBg,
+                              borderColor: tagBorder,
+                            }
+                          ]}
+                        >
+                          <Text style={[styles.tagCardIcon, { color: currentTheme.textPrimary }]}>✦</Text>
+                          <Text style={[styles.tagCardName, { color: currentTheme.textPrimary }]} numberOfLines={2}>
+                            {tag.name}
+                          </Text>
+                          <Text style={[styles.tagCardCount, { color: isDark ? '#a1a1aa' : '#71717a' }]}>
+                            {tag.count} {tag.count === 1 ? 'nota' : 'note'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          );
         }
-      />
+
+        return (
+          /* Lista Normale (Tutti / Preferiti) OPPURE RAG Chat Attiva (AI Insights con query) */
+          <FlatList
+            data={filteredNotes}
+            renderItem={renderCard}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            contentContainerStyle={styles.gridContainer}
+            columnWrapperStyle={styles.row}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={selectedFilter === 'Secondo Cervello' ? renderRAGResponseHeader : undefined}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={{ color: currentTheme.textSecondary }}>Nessuna nota trovata con i filtri selezionati.</Text>
+              </View>
+            }
+          />
+        );
+      })()}
 
       {/* FAB: Sbloccato apre il modal di creazione nota */}
       <Pressable 
@@ -1412,6 +1606,102 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 14,
     fontWeight: '600',
+  },
+  ragResponseWrapper: {
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 20,
+    width: '100%',
+  },
+  ragHeaderTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  ragHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#93c5fd',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  ragLoadingText: {
+    fontSize: 14,
+    color: '#cbd5e1',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  ragResponseText: {
+    fontSize: 14,
+    color: '#f8fafc',
+    lineHeight: 22,
+  },
+  ragContextTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 14,
+    color: '#94a3b8',
+  },
+  insightsDashboardContainer: {
+    paddingBottom: 80,
+  },
+  insightsDashboard: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  insightsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  insightsDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  emptyInsights: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  tagCard: {
+    width: (Dimensions.get('window').width - 52) / 2,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 4,
+  },
+  tagCardIcon: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  tagCardName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  tagCardCount: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  clearSearchBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
