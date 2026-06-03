@@ -39,9 +39,7 @@ export default function SettingsScreen() {
   const isDark = systemColorScheme === 'dark';
   const currentTheme = isDark ? Palette.dark : Palette.light;
 
-  // Stato Master Password
-  const [masterPassword, setMasterPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+
 
   // Stato Cloud Config
   const [cloudProvider, setCloudProvider] = useState<CloudConfig['provider']>('none');
@@ -67,8 +65,7 @@ export default function SettingsScreen() {
   // Caricamento dei dati salvati all'avvio
   useEffect(() => {
     async function loadSettings() {
-      const pwd = await SecureStorage.getMasterPassword();
-      if (pwd) setMasterPassword(pwd);
+
 
       const cloud = await SecureStorage.getCloudConfig();
       if (cloud) {
@@ -162,8 +159,7 @@ export default function SettingsScreen() {
     setSaveStatus('saving');
     setErrorMsg(null);
     try {
-      // Salva la password principale
-      await SecureStorage.saveMasterPassword(masterPassword);
+
 
       // Salva configurazione cloud
       await SecureStorage.saveCloudConfig({
@@ -194,7 +190,7 @@ export default function SettingsScreen() {
 
   const handleClear = async () => {
     await SecureStorage.clearAll();
-    setMasterPassword('');
+
     setCloudProvider('none');
     setWebdavUrl('');
     setWebdavUsername('');
@@ -226,43 +222,9 @@ export default function SettingsScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           
-          {/* SEZIONE 1: Master Password */}
+          {/* SEZIONE 1: Cloud Storage (BYO-Cloud) */}
           <View style={[styles.card, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
-            <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>1. Sicurezza Client-Side</Text>
-            <Text style={[styles.cardDescription, { color: currentTheme.textSecondary }]}>
-              Inserisci la Master Password che verrà usata per cifrare i dati prima del salvataggio. Non viene mai inviata al server o salvata in chiaro.
-            </Text>
-
-            <View style={styles.inputWrapper}>
-              <TextInput
-                placeholder="Inserisci password principale..."
-                placeholderTextColor={currentTheme.textSecondary}
-                value={masterPassword}
-                onChangeText={setMasterPassword}
-                secureTextEntry={!showPassword}
-                style={[
-                  styles.input, 
-                  { 
-                    color: currentTheme.textPrimary, 
-                    borderColor: currentTheme.border,
-                    backgroundColor: currentTheme.background 
-                  }
-                ]}
-              />
-              <Pressable 
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.inputToggle}
-              >
-                <Text style={{ color: currentTheme.textSecondary, fontSize: 12 }}>
-                  {showPassword ? 'Nascondi' : 'Mostra'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* SEZIONE 2: Cloud Storage (BYO-Cloud) */}
-          <View style={[styles.card, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
-            <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>2. Destinazione Cloud (BYO-Cloud)</Text>
+            <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>1. Destinazione Cloud (BYO-Cloud)</Text>
             <Text style={[styles.cardDescription, { color: currentTheme.textSecondary }]}>
               Seleziona dove verranno conservati i file JSON cifrati delle tue note.
             </Text>
@@ -425,9 +387,9 @@ export default function SettingsScreen() {
             )}
           </View>
 
-          {/* SEZIONE 3: AI Config (BYOK) */}
+          {/* SEZIONE 2: AI Config (BYOK) */}
           <View style={[styles.card, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
-            <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>3. Motore IA (Bring Your Own Key)</Text>
+            <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>2. Motore IA (Bring Your Own Key)</Text>
             <Text style={[styles.cardDescription, { color: currentTheme.textSecondary }]}>
               Inserisci la tua chiave API o l'endpoint per Ollama locale. Nessuna chiave viene mai inoltrata a server esterni.
             </Text>

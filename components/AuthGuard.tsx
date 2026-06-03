@@ -9,6 +9,7 @@ import {
   Platform, 
   useColorScheme 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Palette } from '../constants/Colors';
 import { SecureStorage } from '../constants/SecureStorage';
 import { CryptoEngine } from '../constants/CryptoEngine';
@@ -25,12 +26,14 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [enteredPassword, setEnteredPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  // Stati sblocco biometrico
+  // Stati per la creazione password
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
 
-  // Rileva se siamo su un browser desktop
   const isWeb = Platform.OS === 'web';
 
   const checkLockState = async () => {
@@ -38,10 +41,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setHasPassword(configured);
 
     if (!configured) {
-      // Primo avvio: nessuna password impostata. Consentiamo l'accesso.
-      setIsUnlocked(true);
+      setIsUnlocked(false);
     } else {
-      // Password impostata: controlla lo stato della sessione RAM
       const sessionActive = SecureStorage.isSessionUnlocked();
       setIsUnlocked(sessionActive);
     }
@@ -57,17 +58,45 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
     const isValid = await SecureStorage.verifyPassword(enteredPassword);
     if (isValid) {
-      // Deriva la chiave crittografica per la sessione e sblocca
       try {
         await CryptoEngine.deriveKey(enteredPassword);
         SecureStorage.setSessionUnlocked(true);
         setIsUnlocked(true);
       } catch (e) {
         console.error('[AuthGuard] Errore derivazione chiave:', e);
-        setErrorMsg('Errore interno. Riprova.');
+        setErrorMsg('Errore nella generazione della chiave crittografica.');
       }
     } else {
       setErrorMsg('Password errata. Riprova.');
+    }
+  };
+
+  const handleCreatePassword = async () => {
+    if (!newPassword.trim()) {
+      setErrorMsg('La password non può essere vuota.');
+      return;
+    }
+    if (newPassword.length < 4) {
+      setErrorMsg('La password deve essere di almeno 4 caratteri.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('Le password non coincidono.');
+      return;
+    }
+    setErrorMsg(null);
+
+    try {
+      // Salva la password in SecureStorage (imposta in automatico sessionUnlocked = true)
+      await SecureStorage.saveMasterPassword(newPassword);
+      // Deriva la chiave in memoria RAM
+      await CryptoEngine.deriveKey(newPassword);
+      
+      setHasPassword(true);
+      setIsUnlocked(true);
+    } catch (e) {
+      console.error('[AuthGuard] Errore inizializzazione password:', e);
+      setErrorMsg('Errore durante il salvataggio della password.');
     }
   };
 
@@ -76,26 +105,29 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setErrorMsg(null);
     setIsBiometricLoading(true);
 
-    // Simula la latenza del FaceID/Fingerprint nativo sul dispositivo
     setTimeout(async () => {
       try {
-        // Ottiene in sicurezza la password memorizzata (autenticata dal TouchID/FaceID simulato)
-        // Nelle implementazioni reali, questo sblocca l'accesso al portachiavi sicuro (Keychain/Keystore)
+        // Ottiene la password in modo sicuro (simulazione) e sblocca la sessione
         SecureStorage.setSessionUnlocked(true);
-        
-        // Eseguiamo anche il caricamento del master password ed il trigger della chiave in RAM
-        const savedPassword = await SecureStorage.verifyPassword(''); // Nel mockup usiamo l'autenticazione diretta
-        
-        setIsUnlocked(true);
+        // Eseguiamo il sblocco effettivo caricando la password ed elaborando la chiave in memoria RAM
+        const savedPassword = await SecureStorage.getMasterPassword();
+        if (savedPassword) {
+          await CryptoEngine.deriveKey(savedPassword);
+          setIsUnlocked(true);
+        } else {
+          setErrorMsg('Nessuna password salvata trovata.');
+          SecureStorage.setSessionUnlocked(false);
+        }
       } catch (e) {
         setErrorMsg('Sblocco biometrico fallito.');
+        SecureStorage.setSessionUnlocked(false);
       } finally {
         setIsBiometricLoading(false);
       }
     }, 1200);
   };
 
-  // Se lo stato della password non è ancora stato letto, mostriamo una schermata di caricamento geometrica minimale
+  // Caricamento iniziale
   if (hasPassword === null) {
     return (
       <View style={[styles.container, { backgroundColor: currentTheme.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -104,103 +136,166 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Se l'app è sbloccata, mostra i tab normali
+  // App sbloccata -> renderizza l'albero di navigazione normale (Stack/Tabs)
   if (isUnlocked) {
     return <>{children}</>;
   }
 
-  // Altrimenti, blocca l'accesso con la schermata di sblocco a tutto schermo (Auth Overlay)
+  // Schermata a tutto schermo
   return (
-    <View style={[styles.container, { backgroundColor: currentTheme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.background }]} edges={['top', 'bottom']}>
       <View style={styles.authContainer}>
-        {/* Logo / Header */}
+        {/* Header Logo */}
         <View style={styles.header}>
-          <Text style={[styles.logoText, { color: currentTheme.textPrimary }]}>JournalAI</Text>
+          <Text style={[styles.logoText, { color: currentTheme.textPrimary }]}>
+            {hasPassword ? 'JournalAI' : 'Benvenuto in JournalAI'}
+          </Text>
           
           <View style={[styles.statusNode, { borderColor: currentTheme.border, backgroundColor: currentTheme.surface }]}>
-            <View style={styles.statusDot} />
-            <Text style={[styles.statusText, { color: currentTheme.textPrimary }]}>Zero-Knowledge Auth</Text>
+            <View style={[styles.statusDot, { backgroundColor: hasPassword ? '#f59e0b' : '#3b82f6' }]} />
+            <Text style={[styles.statusText, { color: currentTheme.textPrimary }]}>
+              {hasPassword ? 'Zero-Knowledge Auth' : 'Inizializzazione Spazio'}
+            </Text>
           </View>
         </View>
 
-        {/* Form di sblocco */}
-        <View style={[styles.authCard, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
-          <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>
-            Diario Cifrato
-          </Text>
-          <Text style={[styles.cardDescription, { color: currentTheme.textSecondary }]}>
-            Inserisci la Master Password per derivare le chiavi locali di decifratura e sbloccare lo spazio di lavoro.
-          </Text>
-
-          <TextInput
-            placeholder="Inserisci Master Password..."
-            placeholderTextColor={currentTheme.textSecondary}
-            value={enteredPassword}
-            onChangeText={setEnteredPassword}
-            secureTextEntry={true}
-            onSubmitEditing={handlePasswordUnlock}
-            style={[
-              styles.input,
-              { 
-                color: currentTheme.textPrimary, 
-                borderColor: currentTheme.border, 
-                backgroundColor: currentTheme.background 
-              }
-            ]}
-          />
-
-          {errorMsg && (
-            <Text style={styles.errorText}>
-              ❌ {errorMsg}
+        {/* UI di Setup (Primo Accesso) */}
+        {!hasPassword ? (
+          <View style={[styles.authCard, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
+            <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>
+              Crea Master Password
             </Text>
-          )}
+            <Text style={[styles.cardDescription, { color: currentTheme.textSecondary }]}>
+              Questa password verrà utilizzata localmente sul tuo dispositivo per generare la chiave crittografica AES-GCM 256. Non verrà mai trasmessa in rete.
+            </Text>
 
-          {/* Azioni di Sblocco */}
-          <View style={styles.actionsRow}>
+            <TextInput
+              placeholder="Crea Master Password..."
+              placeholderTextColor={currentTheme.textSecondary}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry={true}
+              onSubmitEditing={handleCreatePassword}
+              style={[
+                styles.input,
+                { 
+                  color: currentTheme.textPrimary, 
+                  borderColor: currentTheme.border, 
+                  backgroundColor: currentTheme.background 
+                }
+              ]}
+            />
+
+            <TextInput
+              placeholder="Conferma Master Password..."
+              placeholderTextColor={currentTheme.textSecondary}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={true}
+              onSubmitEditing={handleCreatePassword}
+              style={[
+                styles.input,
+                { 
+                  color: currentTheme.textPrimary, 
+                  borderColor: currentTheme.border, 
+                  backgroundColor: currentTheme.background 
+                }
+              ]}
+            />
+
+            {errorMsg && (
+              <Text style={styles.errorText}>
+                ❌ {errorMsg}
+              </Text>
+            )}
+
             <Pressable
-              onPress={handlePasswordUnlock}
-              style={[styles.unlockBtn, { backgroundColor: currentTheme.textPrimary, flex: 1 }]}
+              onPress={handleCreatePassword}
+              style={[styles.unlockBtn, { backgroundColor: currentTheme.textPrimary, width: '100%', marginTop: 8 }]}
             >
               <Text style={[styles.unlockBtnText, { color: isDark ? '#000' : '#fff' }]}>
-                Sblocca Diario
+                Inizializza Spazio Cifrato
               </Text>
             </Pressable>
+          </View>
+        ) : (
+          /* UI di Sblocco (Accessi Successivi) */
+          <View style={[styles.authCard, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
+            <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>
+              Spazio di Lavoro Bloccato
+            </Text>
+            <Text style={[styles.cardDescription, { color: currentTheme.textSecondary }]}>
+              Inserisci la Master Password per derivare le chiavi crittografiche client-side e ripristinare la sessione in RAM.
+            </Text>
 
-            {/* Icona biometrica per mobile */}
-            {!isWeb && (
+            <TextInput
+              placeholder="Inserisci Master Password..."
+              placeholderTextColor={currentTheme.textSecondary}
+              value={enteredPassword}
+              onChangeText={setEnteredPassword}
+              secureTextEntry={true}
+              onSubmitEditing={handlePasswordUnlock}
+              style={[
+                styles.input,
+                { 
+                  color: currentTheme.textPrimary, 
+                  borderColor: currentTheme.border, 
+                  backgroundColor: currentTheme.background 
+                }
+              ]}
+            />
+
+            {errorMsg && (
+              <Text style={styles.errorText}>
+                ❌ {errorMsg}
+              </Text>
+            )}
+
+            <View style={styles.actionsRow}>
               <Pressable
-                onPress={handleBiometricUnlock}
-                disabled={isBiometricLoading}
-                style={[
-                  styles.bioBtn, 
-                  { 
-                    borderColor: currentTheme.border, 
-                    backgroundColor: isDark ? '#1a2730' : '#e0f2fe' 
-                  }
-                ]}
+                onPress={handlePasswordUnlock}
+                style={[styles.unlockBtn, { backgroundColor: currentTheme.textPrimary, flex: 1 }]}
               >
-                {isBiometricLoading ? (
-                  <ActivityIndicator size="small" color="#0284c7" />
-                ) : (
-                  <Text style={styles.bioIcon}>🧬</Text>
-                )}
+                <Text style={[styles.unlockBtnText, { color: isDark ? '#000' : '#fff' }]}>
+                  Sblocca Spazio
+                </Text>
               </Pressable>
+
+              {!isWeb && (
+                <Pressable
+                  onPress={handleBiometricUnlock}
+                  disabled={isBiometricLoading}
+                  style={[
+                    styles.bioBtn, 
+                    { 
+                      borderColor: currentTheme.border, 
+                      backgroundColor: isDark ? '#1a2730' : '#e0f2fe' 
+                    }
+                  ]}
+                >
+                  {isBiometricLoading ? (
+                    <ActivityIndicator size="small" color="#0284c7" />
+                  ) : (
+                    <Text style={styles.bioIcon}>🧬</Text>
+                  )}
+                </Pressable>
+              )}
+            </View>
+
+            {isBiometricLoading && (
+              <Text style={[styles.loadingText, { color: currentTheme.textSecondary }]}>
+                Verifica biometrica in corso...
+              </Text>
             )}
           </View>
-
-          {isBiometricLoading && (
-            <Text style={[styles.loadingText, { color: currentTheme.textSecondary }]}>
-              Verifica dei dati biometrici FaceID/TouchID in corso...
-            </Text>
-          )}
-        </View>
+        )}
 
         {/* Footer info sicurezza */}
         <Text style={[styles.footerText, { color: currentTheme.textSecondary }]}>
-          Nessuna password viene mai trasmessa in rete. La chiave crittografica viene distrutta alla chiusura dell'applicazione.
+          Nessuna chiave viene mai inoltrata a server centralizzati. Tutto avviene interamente in locale nella sandbox del tuo browser o del dispositivo.
         </Text>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -222,9 +317,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logoText: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
-    letterSpacing: -1,
+    letterSpacing: -0.5,
+    textAlign: 'center',
   },
   statusNode: {
     flexDirection: 'row',
@@ -238,7 +334,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#f59e0b', // Led arancione di sblocco in corso
     marginRight: 6,
   },
   statusText: {
@@ -257,7 +352,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 6,
     textAlign: 'center',
