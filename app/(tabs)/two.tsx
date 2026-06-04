@@ -55,8 +55,7 @@ export default function SettingsScreen() {
   // Stato AI Config
   const [aiProvider, setAiProvider] = useState<AIConfig['provider']>('none');
   const [aiApiKey, setAiApiKey] = useState('');
-  const [ollamaEndpoint, setOllamaEndpoint] = useState('http://localhost:11434');
-  const [ollamaModel, setOllamaModel] = useState('llama3');
+  const [geminiModel, setGeminiModel] = useState('gemini-3.1-flash-lite');
 
   // Stato Feedback UI
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -82,10 +81,13 @@ export default function SettingsScreen() {
 
       const ai = await SecureStorage.getAIConfig();
       if (ai) {
-        setAiProvider(ai.provider);
+        if (ai.provider === 'gemini') {
+          setAiProvider('gemini');
+        } else {
+          setAiProvider('none');
+        }
         if (ai.apiKey) setAiApiKey(ai.apiKey);
-        if (ai.customEndpoint) setOllamaEndpoint(ai.customEndpoint);
-        if (ai.modelName) setOllamaModel(ai.modelName);
+        if (ai.modelName) setGeminiModel(ai.modelName);
       }
     }
     loadSettings();
@@ -173,10 +175,9 @@ export default function SettingsScreen() {
 
       // Salva configurazione AI
       await SecureStorage.saveAIConfig({
-        provider: aiProvider,
-        apiKey: (aiProvider === 'gemini' || aiProvider === 'openai') ? aiApiKey : undefined,
-        customEndpoint: aiProvider === 'ollama' ? ollamaEndpoint : undefined,
-        modelName: aiProvider === 'ollama' ? ollamaModel : undefined,
+        provider: aiProvider === 'gemini' ? 'gemini' : 'none',
+        apiKey: aiProvider === 'gemini' ? aiApiKey : undefined,
+        modelName: aiProvider === 'gemini' ? geminiModel : undefined,
       });
 
       setSaveStatus('success');
@@ -200,8 +201,7 @@ export default function SettingsScreen() {
     setAuthStatus('idle');
     setAiProvider('none');
     setAiApiKey('');
-    setOllamaEndpoint('http://localhost:11434');
-    setOllamaModel('llama3');
+    setGeminiModel('gemini-3.1-flash-lite');
     setSaveStatus('success');
     setTimeout(() => setSaveStatus('idle'), 2000);
   };
@@ -337,18 +337,16 @@ export default function SettingsScreen() {
           <View style={[styles.card, { backgroundColor: currentTheme.surface, borderColor: currentTheme.border }]}>
             <Text style={[styles.cardTitle, { color: currentTheme.textPrimary }]}>2. Motore IA (Bring Your Own Key)</Text>
             <Text style={[styles.cardDescription, { color: currentTheme.textSecondary }]}>
-              Inserisci la tua chiave API o l'endpoint per Ollama locale. Nessuna chiave viene mai inoltrata a server esterni.
+              Seleziona Google Gemini e inserisci la tua chiave API. Nessuna chiave viene mai inoltrata a server esterni.
             </Text>
 
             {/* AI Selector Buttons */}
             <View style={styles.selectorGrid}>
-              {(['none', 'gemini', 'openai', 'ollama'] as const).map((p) => {
+              {(['none', 'gemini'] as const).map((p) => {
                 const isSelected = aiProvider === p;
                 const pastelColors: Record<string, string> = {
                   none: isDark ? '#27272a' : '#f4f4f5',
                   gemini: isDark ? '#1a2730' : '#e0f2fe',
-                  openai: isDark ? '#212f27' : '#e8f5e9',
-                  ollama: isDark ? '#2d1b33' : '#f3e5f5',
                 };
 
                 return (
@@ -374,58 +372,76 @@ export default function SettingsScreen() {
                     >
                       {p === 'none' && 'Nessuno'}
                       {p === 'gemini' && 'Gemini'}
-                      {p === 'openai' && 'OpenAI'}
-                      {p === 'ollama' && 'Ollama'}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
 
-            {/* API Key Inputs */}
-            {(aiProvider === 'gemini' || aiProvider === 'openai') && (
+            {/* API Key & Gemini Model Selector Inputs */}
+            {aiProvider === 'gemini' && (
               <View style={styles.conditionalContainer}>
                 <Text style={[styles.label, { color: currentTheme.textPrimary }]}>Chiave API</Text>
                 <TextInput
-                  placeholder={`Inserisci la tua API Key di ${aiProvider === 'gemini' ? 'Gemini' : 'OpenAI'}...`}
+                  placeholder="Inserisci la tua API Key di Gemini..."
                   placeholderTextColor={currentTheme.textSecondary}
                   value={aiApiKey}
                   onChangeText={setAiApiKey}
                   secureTextEntry
                   style={[
                     styles.input,
-                    { color: currentTheme.textPrimary, borderColor: currentTheme.border, backgroundColor: currentTheme.background }
-                  ]}
-                />
-              </View>
-            )}
-
-            {/* Ollama Inputs */}
-            {aiProvider === 'ollama' && (
-              <View style={styles.conditionalContainer}>
-                <Text style={[styles.label, { color: currentTheme.textPrimary }]}>Endpoint Ollama Locale</Text>
-                <TextInput
-                  placeholder="http://localhost:11434"
-                  placeholderTextColor={currentTheme.textSecondary}
-                  value={ollamaEndpoint}
-                  onChangeText={setOllamaEndpoint}
-                  style={[
-                    styles.input,
-                    { color: currentTheme.textPrimary, borderColor: currentTheme.border, backgroundColor: currentTheme.background }
+                    { color: currentTheme.textPrimary, borderColor: currentTheme.border, backgroundColor: currentTheme.background, marginBottom: 8 }
                   ]}
                 />
 
-                <Text style={[styles.label, { color: currentTheme.textPrimary }]}>Nome Modello</Text>
-                <TextInput
-                  placeholder="llama3 o phi4..."
-                  placeholderTextColor={currentTheme.textSecondary}
-                  value={ollamaModel}
-                  onChangeText={setOllamaModel}
-                  style={[
-                    styles.input,
-                    { color: currentTheme.textPrimary, borderColor: currentTheme.border, backgroundColor: currentTheme.background }
-                  ]}
-                />
+                <Text style={[styles.label, { color: currentTheme.textPrimary }]}>Modello Gemini</Text>
+                <View style={styles.selectorGrid}>
+                  {([
+                    'gemini-3.1-flash-lite',
+                    'gemini-2.5-flash',
+                    'gemini-2.5-pro',
+                    'gemini-1.5-flash',
+                    'gemini-1.5-pro'
+                  ] as const).map((m) => {
+                    const isSelected = geminiModel === m;
+                    const modelColors: Record<string, string> = {
+                      'gemini-3.1-flash-lite': isDark ? '#1b2d24' : '#e8f5e9', // Salvia
+                      'gemini-2.5-flash': isDark ? '#162b3d' : '#e3f2fd',      // Azzurro
+                      'gemini-2.5-pro': isDark ? '#2d1b33' : '#f3e5f5',        // Lilla
+                      'gemini-1.5-flash': isDark ? '#3d2516' : '#fff3e0',      // Pesca
+                      'gemini-1.5-pro': isDark ? '#2d1a1a' : '#ffebee',        // Rosa
+                    };
+                    
+                    return (
+                      <Pressable
+                        key={m}
+                        onPress={() => setGeminiModel(m)}
+                        style={[
+                          styles.selectorBtn,
+                          {
+                            borderColor: isSelected ? currentTheme.textPrimary : currentTheme.border,
+                            backgroundColor: isSelected ? modelColors[m] : currentTheme.background,
+                            minWidth: '45%',
+                            marginBottom: 4
+                          }
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.selectorBtnText,
+                            {
+                              color: isSelected ? currentTheme.textPrimary : currentTheme.textSecondary,
+                              fontWeight: isSelected ? '600' : '400',
+                              fontSize: 12
+                            }
+                          ]}
+                        >
+                          {m}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
             )}
           </View>

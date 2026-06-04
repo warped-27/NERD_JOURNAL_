@@ -10,9 +10,8 @@ export interface CloudConfig {
 }
 
 export interface AIConfig {
-  provider: 'gemini' | 'openai' | 'ollama' | 'none';
+  provider: 'gemini' | 'none';
   apiKey?: string;
-  customEndpoint?: string;
   modelName?: string;
 }
 

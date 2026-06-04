@@ -70,9 +70,10 @@ Nota da analizzare:
     try {
       if (aiConfig.provider === 'gemini') {
         if (!aiConfig.apiKey) throw new Error('API Key Gemini mancante.');
+        const model = aiConfig.modelName || 'gemini-3.1-flash-lite';
         
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${aiConfig.apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -100,70 +101,6 @@ Nota da analizzare:
         };
       }
 
-      if (aiConfig.provider === 'openai') {
-        if (!aiConfig.apiKey) throw new Error('API Key OpenAI mancante.');
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${aiConfig.apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: 'Sei un analista di diari personali. Rispondi solo in formato JSON.' },
-              { role: 'user', content: prompt }
-            ],
-            response_format: { type: 'json_object' }
-          })
-        });
-
-        if (!response.ok) throw new Error(`Status HTTP OpenAI: ${response.status}`);
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content;
-        if (!content) throw new Error('Risposta vuota da OpenAI.');
-
-        const parsed = parseLLMResponse(content);
-        const colorIdx = (typeof parsed.colorIndex === 'number' && parsed.colorIndex >= 0 && parsed.colorIndex < 4) ? parsed.colorIndex : 0;
-
-        return {
-          summary: parsed.summary || 'Nessuna sintesi generata.',
-          tags: parsed.tags || ['AI'],
-          color: PASTEL_COLORS[colorIdx]
-        };
-      }
-
-      if (aiConfig.provider === 'ollama') {
-        const endpoint = aiConfig.customEndpoint || 'http://localhost:11434';
-        const model = aiConfig.modelName || 'llama3';
-
-        const response = await fetch(`${endpoint}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: model,
-            prompt: prompt,
-            stream: false,
-            format: 'json'
-          })
-        });
-
-        if (!response.ok) throw new Error(`Status HTTP Ollama: ${response.status}`);
-        const data = await response.json();
-        const responseText = data.response;
-        if (!responseText) throw new Error('Risposta vuota da Ollama.');
-
-        const parsed = parseLLMResponse(responseText);
-        const colorIdx = (typeof parsed.colorIndex === 'number' && parsed.colorIndex >= 0 && parsed.colorIndex < 4) ? parsed.colorIndex : 0;
-
-        return {
-          summary: parsed.summary || 'Nessuna sintesi generata.',
-          tags: parsed.tags || ['AI'],
-          color: PASTEL_COLORS[colorIdx]
-        };
-      }
-
       return FALLBACK_INSIGHTS;
     } catch (error) {
       console.warn('[AIEngine] Errore chiamata API IA, uso del fallback:', error);
@@ -176,13 +113,10 @@ Nota da analizzare:
       throw new Error('Nessun provider IA configurato per l\'elaborazione vocale.');
     }
 
-    if (aiConfig.provider === 'ollama') {
-      throw new Error('Elaborazione vocale non ancora supportata per i modelli locali. Usa l\'inserimento testuale.');
-    }
-
     try {
       if (aiConfig.provider === 'gemini') {
         if (!aiConfig.apiKey) throw new Error('API Key Gemini mancante.');
+        const model = aiConfig.modelName || 'gemini-3.1-flash-lite';
 
         const base64Data = await blobToBase64(audioBlob);
         const mimeType = audioBlob.type || 'audio/webm';
@@ -193,7 +127,7 @@ Nota da analizzare:
 }`;
 
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${aiConfig.apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -223,26 +157,6 @@ Nota da analizzare:
 
         const parsed = parseLLMResponse(candidateText);
         return parsed.transcription || '';
-      }
-
-      if (aiConfig.provider === 'openai') {
-        if (!aiConfig.apiKey) throw new Error('API Key OpenAI mancante.');
-
-        const formData = new FormData();
-        formData.append('file', audioBlob, 'audio.webm');
-        formData.append('model', 'whisper-1');
-
-        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${aiConfig.apiKey}`
-          },
-          body: formData
-        });
-
-        if (!response.ok) throw new Error(`Status HTTP OpenAI Whisper: ${response.status}`);
-        const data = await response.json();
-        return data.text || '';
       }
 
       throw new Error(`Provider ${aiConfig.provider} non supportato per l'elaborazione vocale.`);
@@ -278,9 +192,10 @@ Nota da analizzare:
     try {
       if (aiConfig.provider === 'gemini') {
         if (!aiConfig.apiKey) throw new Error('API Key Gemini mancante.');
+        const model = aiConfig.modelName || 'gemini-3.1-flash-lite';
 
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${aiConfig.apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -302,52 +217,6 @@ Nota da analizzare:
         return candidateText.trim();
       }
 
-      if (aiConfig.provider === 'openai') {
-        if (!aiConfig.apiKey) throw new Error('API Key OpenAI mancante.');
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${aiConfig.apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemInstruction },
-              { role: 'user', content: `Contesto degli appunti:\n${context}\n\nDomanda: ${query}` }
-            ]
-          })
-        });
-
-        if (!response.ok) throw new Error(`Status HTTP OpenAI RAG: ${response.status}`);
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content;
-        if (!content) throw new Error('Risposta vuota da OpenAI.');
-        return content.trim();
-      }
-
-      if (aiConfig.provider === 'ollama') {
-        const endpoint = aiConfig.customEndpoint || 'http://localhost:11434';
-        const model = aiConfig.modelName || 'llama3';
-
-        const prompt = `System: ${systemInstruction}\n\nContesto degli appunti:\n${context}\n\nDomanda: ${query}`;
-
-        const response = await fetch(`${endpoint}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: model,
-            prompt: prompt,
-            stream: false
-          })
-        });
-
-        if (!response.ok) throw new Error(`Status HTTP Ollama RAG: ${response.status}`);
-        const data = await response.json();
-        return data.response || 'Nessuna risposta da Ollama.';
-      }
-
       throw new Error(`Provider RAG ${aiConfig.provider} non supportato.`);
     } catch (error: any) {
       console.error('[AIEngine RAG] Errore:', error);
@@ -365,9 +234,10 @@ Nota da analizzare:
     try {
       if (aiConfig.provider === 'gemini') {
         if (!aiConfig.apiKey) throw new Error('API Key Gemini mancante.');
+        const model = aiConfig.modelName || 'gemini-3.1-flash-lite';
 
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${aiConfig.apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -387,52 +257,6 @@ Nota da analizzare:
         const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!candidateText) throw new Error('Risposta vuota da Gemini.');
         return candidateText.trim();
-      }
-
-      if (aiConfig.provider === 'openai') {
-        if (!aiConfig.apiKey) throw new Error('API Key OpenAI mancante.');
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${aiConfig.apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemInstruction },
-              { role: 'user', content: `Testo:\n"${content}"` }
-            ]
-          })
-        });
-
-        if (!response.ok) throw new Error(`Status HTTP OpenAI Title: ${response.status}`);
-        const data = await response.json();
-        const responseText = data.choices?.[0]?.message?.content;
-        if (!responseText) throw new Error('Risposta vuota da OpenAI.');
-        return responseText.trim();
-      }
-
-      if (aiConfig.provider === 'ollama') {
-        const endpoint = aiConfig.customEndpoint || 'http://localhost:11434';
-        const model = aiConfig.modelName || 'llama3';
-
-        const prompt = `System: ${systemInstruction}\n\nTesto:\n"${content}"`;
-
-        const response = await fetch(`${endpoint}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: model,
-            prompt: prompt,
-            stream: false
-          })
-        });
-
-        if (!response.ok) throw new Error(`Status HTTP Ollama Title: ${response.status}`);
-        const data = await response.json();
-        return (data.response || '').trim();
       }
 
       throw new Error(`Provider ${aiConfig.provider} non supportato per la generazione dei titoli.`);
