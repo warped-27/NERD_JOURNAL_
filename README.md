@@ -9,7 +9,7 @@ Zero-Knowledge Encryption (Client-Side): Data never leaves the device in plain t
 
 BYOK (Bring Your Own Key): No subscriptions, no proxy servers. The app interfaces directly with Google Gemini APIs using the personal API key provided by the user.
 
-BYO-Cloud (Bring Your Own Cloud): No corporate lock-in. Encrypted data can be synchronized exclusively on the cloud providers chosen by the user (Google Drive, iCloud, WebDAV).
+BYO-Cloud (Bring Your Own Cloud): No corporate lock-in. Encrypted data can be synchronized exclusively on the cloud providers chosen by the user (Google Drive).
 
 💻 Main Features
 Terminal/Cyberpunk Interface: Strictly squared UI (border-radius: 0), abyssal backgrounds, monospace fonts, neon green accents, and ASCII icons. Zero distractions, total focus on content.
