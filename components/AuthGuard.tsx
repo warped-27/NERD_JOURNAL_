@@ -148,7 +148,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         {/* Header Logo */}
         <View style={styles.header}>
           <Text style={[styles.logoText, { color: currentTheme.textPrimary }]}>
-            {hasPassword ? 'JournalAI' : 'Benvenuto in JournalAI'}
+            {hasPassword ? 'Nerd Journal' : 'Benvenuto in Nerd Journal'}
           </Text>
           
           <View style={[styles.statusNode, { borderColor: currentTheme.border, backgroundColor: currentTheme.surface }]}>

@@ -68,7 +68,7 @@ const INITIAL_NOTES: NoteItem[] = [
     id: '2',
     title: 'Vocale: Idee Startup',
     excerpt: 'Trascrizione crittografata locale della discussione...',
-    content: 'Trascrizione crittografata locale. Discussione sulle funzionalità principali di JournalAI: crittografia client-side AES-GCM e derivazione con PBKDF2 per garantire la massima riservatezza delle registrazioni.',
+    content: 'Trascrizione crittografata locale. Discussione sulle funzionalità principali di Nerd Journal: crittografia client-side AES-GCM e derivazione con PBKDF2 per garantire la massima riservatezza delle registrazioni.',
     date: 'Ieri, 18:15',
     tags: ['Vocale', 'Analisi-AI'],
     pastelAccent: {
@@ -367,7 +367,7 @@ export default function DashboardScreen() {
         // 1. Gestione Cartella (eseguita solo in fase di creazione del file)
         let folderId = '';
         const folderSearchRes = await fetch(
-          `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='JournalAI' and trashed=false")}`,
+          `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='Nerd Journal' and trashed=false")}`,
           {
             headers: {
               'Authorization': `Bearer ${cloudConfig.accessToken}`,
@@ -390,7 +390,7 @@ export default function DashboardScreen() {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                name: 'JournalAI',
+                name: 'Nerd Journal',
                 mimeType: 'application/vnd.google-apps.folder',
               }),
             }
@@ -1093,7 +1093,7 @@ export default function DashboardScreen() {
       {/* Top Header */}
       <View style={[styles.header, { borderColor: currentTheme.border }]}>
         <View>
-          <Text style={[styles.headerTitle, { color: currentTheme.textPrimary }]}>JournalAI</Text>
+          <Text style={[styles.headerTitle, { color: currentTheme.textPrimary }]}>Nerd Journal</Text>
           <Text style={[styles.headerSubtitle, { color: currentTheme.textSecondary }]}>spazio_di_lavoro / locale</Text>
         </View>
         

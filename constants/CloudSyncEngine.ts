@@ -52,7 +52,7 @@ export const CloudSyncEngine = {
 
         // Assicurati che l'URL termini con uno slash
         const baseUrl = webdavUrl.endsWith('/') ? webdavUrl : `${webdavUrl}/`;
-        const fileUrl = `${baseUrl}journalai_${noteId}.json`;
+        const fileUrl = `${baseUrl}nerd_journal_${noteId}.json`;
         const authHeader = `Basic ${toBase64(`${webdavUsername}:${webdavPassword}`)}`;
 
         // Last Write Wins (Verifica timestamp o sovrascrive direttamente con PUT)
@@ -82,7 +82,7 @@ export const CloudSyncEngine = {
         // Se disponiamo di un token OAuth reale, effettuiamo la chiamata multipart
         if (cloudConfig.accessToken) {
           const fileMetadata = {
-            name: `journalai_${noteId}.json`,
+            name: `nerd_journal_${noteId}.json`,
             mimeType: 'application/json',
           };
           const media = {

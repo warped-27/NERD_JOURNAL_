@@ -1,16 +1,18 @@
 {
   "expo": {
-    "name": "JournalAI",
-    "slug": "JournalAI",
+    "name": "Nerd Journal",
+    "slug": "nerd-journal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "journalai",
+    "scheme": "nerdjournal",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tuonome.nerdjournal"
     },
     "android": {
+      "package": "com.tuonome.nerdjournal",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

@@ -269,7 +269,7 @@ export const CryptoEngine = {
     // In un diario, usiamo un salt costante generato sul client all'inizializzazione del database.
     const salt = saltHexOrText 
       ? base64ToBytes(saltHexOrText) 
-      : encoder.encode('journalai_secure_salt_fixed_constant_pbkdf2');
+      : encoder.encode('nerd_journal_secure_salt_fixed_constant_pbkdf2');
       
     // PBKDF2 con 10.000 iterazioni per bilanciare ottime performance su mobile e alta sicurezza contro brute-force
     return pbkdf2HmacSha256(passwordBytes, salt, 10000, 32); // 32 byte = 256 bit

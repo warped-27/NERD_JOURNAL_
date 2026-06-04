@@ -19,9 +19,9 @@ export interface AIConfig {
 const memoryStore: Record<string, string> = {};
 
 const STORAGE_KEYS = {
-  MASTER_PASSWORD: '@journalai_master_password',
-  CLOUD_CONFIG: '@journalai_cloud_config',
-  AI_CONFIG: '@journalai_ai_config',
+  MASTER_PASSWORD: '@nerd_journal_master_password',
+  CLOUD_CONFIG: '@nerd_journal_cloud_config',
+  AI_CONFIG: '@nerd_journal_ai_config',
 };
 
 const getStorageItem = async (key: string): Promise<string | null> => {
