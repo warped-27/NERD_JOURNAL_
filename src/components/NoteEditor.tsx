@@ -4,6 +4,7 @@ import { T }     from '../design/components/T';
 import { Box }   from '../design/components/Box';
 import { Input } from '../design/components/Input';
 import { Btn }   from '../design/components/Btn';
+import { AiAssistant } from './AiAssistant';
 import { Colors, Spacing } from '../design/tokens';
 import type { Note } from '../notes/Note';
 
@@ -78,6 +79,8 @@ export function NoteEditor({ initialTitle, initialContent, onSave, onDelete }: P
           )}
         </View>
       </ScrollView>
+
+      <AiAssistant noteContent={content} />
     </Box>
   );
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { FlatList, Pressable, StyleSheet, View, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { useNotes } from '../../src/notes/NotesContext';
 import { NoteCard } from '../../src/components/NoteCard';
 import { Box }  from '../../src/design/components/Box';
@@ -26,6 +26,11 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <T variant="title">NERD JOURNAL</T>
+        <Link href="/settings" asChild>
+          <Pressable testID="settings-btn" accessibilityLabel="Settings">
+            <T variant="label" style={styles.settingsIcon}>⚙</T>
+          </Pressable>
+        </Link>
       </View>
 
       {/* List */}
@@ -68,7 +73,11 @@ const styles = StyleSheet.create({
     paddingBottom:     Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    flexDirection:     'row',
+    justifyContent:    'space-between',
+    alignItems:        'center',
   },
+  settingsIcon: { fontSize: 20 },
   loader: { flex: 1 },
   list:   { padding: Spacing.md, flexGrow: 1 },
   empty:  { textAlign: 'center', marginTop: Spacing.xxl },

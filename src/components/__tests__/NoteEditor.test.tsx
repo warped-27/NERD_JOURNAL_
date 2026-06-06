@@ -2,6 +2,8 @@ import React, { act } from 'react';
 import TestRenderer from 'react-test-renderer';
 import { NoteEditor } from '../NoteEditor';
 
+jest.mock('../AiAssistant', () => ({ AiAssistant: () => null }));
+
 jest.mock('react-native', () => ({
   Platform:      { OS: 'web' },
   View:          'View',
