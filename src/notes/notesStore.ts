@@ -12,6 +12,7 @@ interface NotesActions {
   loadNotes:  () => Promise<void>;
   createNote: (draft: Pick<Note, 'title' | 'content'>) => Promise<Note>;
   updateNote: (id: string, patch: Pick<Note, 'title' | 'content'> & { attachments?: Note['attachments'] }) => Promise<void>;
+  patchNote:  (id: string, patch: Partial<Pick<Note, 'tags' | 'summary' | 'palette'>>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
 }
 
@@ -45,6 +46,15 @@ export function createNotesStore(repo: NotesRepository) {
       set((s) => ({
         notes: s.notes.map((n) => (n.id === id ? updated : n)),
       }));
+    },
+
+    async patchNote(id, patch) {
+      const existing = get().notes.find((n) => n.id === id);
+      if (!existing) return;
+      // updatedAt is not touched — enrichment is not a user edit
+      const updated: Note = { ...existing, ...patch };
+      await repo.update(updated);
+      set((s) => ({ notes: s.notes.map((n) => (n.id === id ? updated : n)) }));
     },
 
     async deleteNote(id) {

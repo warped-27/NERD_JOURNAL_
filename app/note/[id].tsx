@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useNotes } from '../../src/notes/NotesContext';
+import { useAi } from '../../src/ai/AiContext';
+import { enrichNote } from '../../src/ai/enrichNote';
 import { NoteEditor } from '../../src/components/NoteEditor';
 import { Box } from '../../src/design/components/Box';
 import { T }   from '../../src/design/components/T';
@@ -11,15 +13,19 @@ import type { Note } from '../../src/notes/Note';
 export default function NoteScreen() {
   const { id }   = useLocalSearchParams<{ id: string }>();
   const router   = useRouter();
-  const { notes, updateNote, deleteNote } = useNotes();
+  const { notes, updateNote, patchNote, deleteNote } = useNotes();
+  const ai = useAi();
 
   const note = notes.find((n) => n.id === id);
 
   // Snapshot initial values so edits don't flicker on re-render
-  const [initial] = useState<Pick<Note, 'title' | 'content' | 'attachments'>>({
+  const [initial] = useState<Pick<Note, 'title' | 'content' | 'attachments' | 'tags' | 'summary' | 'palette'>>({
     title:       note?.title       ?? '',
     content:     note?.content     ?? '',
     attachments: note?.attachments ?? [],
+    tags:        note?.tags,
+    summary:     note?.summary,
+    palette:     note?.palette,
   });
 
   // Track intentional deletion so the useEffect doesn't double-navigate
@@ -36,6 +42,12 @@ export default function NoteScreen() {
   async function handleSave(patch: Pick<Note, 'title' | 'content'> & { attachments?: Note['attachments'] }) {
     if (!id) return;
     await updateNote(id, patch);
+    // Fire enrichment asynchronously — does not block navigation
+    if (ai.apiKey && ai.hasConsented && (patch.title || patch.content)) {
+      enrichNote(patch.title, patch.content, ai.apiKey, ai.model).then((result) => {
+        if (result.ok) void patchNote(id, result.value);
+      });
+    }
     router.back();
   }
 
@@ -61,6 +73,9 @@ export default function NoteScreen() {
         initialTitle={initial.title}
         initialContent={initial.content}
         initialAttachments={initial.attachments}
+        initialTags={initial.tags}
+        initialSummary={initial.summary}
+        initialPalette={initial.palette}
         onSave={handleSave}
         onDelete={handleDelete}
       />

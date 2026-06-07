@@ -21,7 +21,7 @@ export function Btn({ label, variant = 'primary', loading = false, style, disabl
         styles[variant],
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
-        typeof style === 'function' ? style({ pressed, hovered: false }) : style,
+        typeof style === 'function' ? style({ pressed }) : style,
       ]}
       disabled={isDisabled}
       accessibilityRole="button"

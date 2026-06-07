@@ -27,6 +27,10 @@ export interface Note {
   attachments: Attachment[]; // always present; [] for old notes
   createdAt:   number; // unix ms
   updatedAt:   number; // unix ms
+  // AI-generated enrichment — optional for backward compat with old encrypted notes
+  tags?:    string[];
+  summary?: string;
+  palette?: string[]; // 2-3 accent hex colors representing note mood
 }
 
 /** Shape of a row as stored in SQLite (id + encrypted JSON + timestamps). */

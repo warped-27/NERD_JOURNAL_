@@ -65,4 +65,26 @@ describe('notesStore', () => {
     await loadPromise;
     expect(store.getState().isLoading).toBe(false);
   });
+
+  it('patchNote updates tags/summary/palette without changing updatedAt', async () => {
+    const store = createNotesStore(makeRepo());
+    await store.getState().createNote({ title: 'Note', content: 'Body' });
+    const { id, updatedAt } = store.getState().notes[0]!;
+    await store.getState().patchNote(id, {
+      tags:    ['coding', 'typescript'],
+      summary: '• point one\n• point two',
+      palette: ['#00ffff'],
+    });
+    const patched = store.getState().notes[0]!;
+    expect(patched.tags).toEqual(['coding', 'typescript']);
+    expect(patched.summary).toBe('• point one\n• point two');
+    expect(patched.palette).toEqual(['#00ffff']);
+    expect(patched.updatedAt).toBe(updatedAt);
+  });
+
+  it('patchNote is a no-op for unknown id', async () => {
+    const store = createNotesStore(makeRepo());
+    await expect(store.getState().patchNote('nonexistent', { tags: ['x'] })).resolves.toBeUndefined();
+    expect(store.getState().notes).toHaveLength(0);
+  });
 });

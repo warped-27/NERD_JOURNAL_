@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, ViewStyle } from 'react-native';
 import { T }               from '../design/components/T';
 import { Box }             from '../design/components/Box';
 import { Input }           from '../design/components/Input';
@@ -15,6 +15,9 @@ interface Props {
   initialTitle:        string;
   initialContent:      string;
   initialAttachments?: Attachment[];
+  initialTags?:        string[];
+  initialSummary?:     string;
+  initialPalette?:     string[];
   onSave:   (patch: Pick<Note, 'title' | 'content'> & { attachments?: Attachment[] }) => Promise<void>;
   onDelete?: () => Promise<void>;
 }
@@ -27,6 +30,9 @@ export function NoteEditor({
   initialTitle,
   initialContent,
   initialAttachments,
+  initialTags,
+  initialSummary,
+  initialPalette,
   onSave,
   onDelete,
 }: Props) {
@@ -37,6 +43,7 @@ export function NoteEditor({
   const [generatingTitle, setGeneratingTitle] = useState(false);
   const [showPicker,      setShowPicker]      = useState(false);
   const [error,           setError]           = useState('');
+  const accentColor = initialPalette?.[0] ?? Colors.greenMute;
   const ai = useAi();
 
   async function handleSave() {
@@ -116,6 +123,31 @@ export function NoteEditor({
           />
         )}
 
+        {/* AI Enrichment panel — shown after first save when AI is configured */}
+        {(initialSummary || (initialTags && initialTags.length > 0)) && (
+          <View style={[styles.enrichPanel, { borderColor: accentColor }]}>
+            <T variant="label" style={[styles.enrichTitle, { color: accentColor }]}>
+              AI ANALYSIS
+            </T>
+            {initialSummary && (
+              <T variant="muted" style={styles.enrichSummary}>{initialSummary}</T>
+            )}
+            {initialTags && initialTags.length > 0 && (
+              <View style={styles.enrichTags}>
+                {initialTags.map((tag) => (
+                  <T
+                    key={tag}
+                    variant="caption"
+                    style={[styles.enrichTag, { borderColor: accentColor, color: accentColor }]}
+                  >
+                    #{tag}
+                  </T>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {error ? <T variant="error" style={styles.error}>{error}</T> : null}
 
         <View style={styles.actions}>
@@ -170,6 +202,28 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     borderColor:  Colors.greenMute,
   },
+  enrichPanel: {
+    borderWidth:    1,
+    borderColor:    Colors.greenMute,
+    padding:        Spacing.sm,
+    marginBottom:   Spacing.sm,
+    gap:            Spacing.xs,
+  } as ViewStyle,
+  enrichTitle:   { fontSize: 11, marginBottom: Spacing.xs },
+  enrichSummary: { lineHeight: 18 },
+  enrichTags: {
+    flexDirection: 'row',
+    flexWrap:      'wrap',
+    gap:           Spacing.xs,
+    marginTop:     Spacing.xs,
+  },
+  enrichTag: {
+    borderWidth:      1,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical:  2,
+    fontSize:         10,
+  },
+
   error:     { marginBottom: Spacing.sm },
   actions:   { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.sm },
   attachBtn: { flex: 0, paddingHorizontal: Spacing.sm },

@@ -15,6 +15,7 @@ interface NotesState {
 interface NotesActions {
   createNote: (draft: Pick<Note, 'title' | 'content'> & { attachments?: Note['attachments'] }) => Promise<Note | null>;
   updateNote: (id: string, patch: Pick<Note, 'title' | 'content'> & { attachments?: Note['attachments'] }) => Promise<void>;
+  patchNote:  (id: string, patch: Partial<Pick<Note, 'tags' | 'summary' | 'palette'>>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
 }
 
@@ -61,12 +62,16 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
     return storeRef.current?.getState().updateNote(id, patch);
   }, []);
 
+  const patchNote = useCallback(async (id: string, patch: Partial<Pick<Note, 'tags' | 'summary' | 'palette'>>): Promise<void> => {
+    return storeRef.current?.getState().patchNote(id, patch);
+  }, []);
+
   const deleteNote = useCallback(async (id: string): Promise<void> => {
     return storeRef.current?.getState().deleteNote(id);
   }, []);
 
   return (
-    <NotesContext.Provider value={{ notes, isLoading, createNote, updateNote, deleteNote }}>
+    <NotesContext.Provider value={{ notes, isLoading, createNote, updateNote, patchNote, deleteNote }}>
       {children}
     </NotesContext.Provider>
   );
