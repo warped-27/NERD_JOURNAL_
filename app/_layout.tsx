@@ -12,6 +12,7 @@ import { VaultProvider }  from '../src/crypto/VaultContext';
 import { AuthGuard }      from '../src/components/AuthGuard';
 import { AiProvider }     from '../src/ai/AiContext';
 import { NotesProvider }  from '../src/notes/NotesContext';
+import { SyncProvider }   from '../src/sync/SyncContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,6 +39,7 @@ export default function RootLayout() {
   return (
     <VaultProvider>
       <AiProvider>
+        <SyncProvider>
         <AuthGuard>
           <NotesProvider>
             <Stack screenOptions={{ headerShown: false }}>
@@ -47,6 +49,7 @@ export default function RootLayout() {
             </Stack>
           </NotesProvider>
         </AuthGuard>
+        </SyncProvider>
       </AiProvider>
     </VaultProvider>
   );

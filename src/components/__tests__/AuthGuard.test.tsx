@@ -40,6 +40,15 @@ jest.mock('../../crypto/VaultContext', () => ({
   VaultProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+jest.mock('../../sync/SyncContext', () => ({
+  useSync:      () => ({ hasConfigured: false, setConfig: jest.fn() }),
+  SyncProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+jest.mock('../SyncOnboarding', () => ({
+  SyncOnboarding: () => null,
+}));
+
 import { AuthGuard } from '../AuthGuard';
 
 beforeEach(() => {

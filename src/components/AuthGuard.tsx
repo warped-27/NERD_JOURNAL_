@@ -3,12 +3,14 @@ import {
   View, KeyboardAvoidingView, ScrollView,
   StyleSheet, Platform,
 } from 'react-native';
-import { useVault }    from '../crypto/VaultContext';
-import { T }           from '../design/components/T';
-import { Box }         from '../design/components/Box';
-import { Input }       from '../design/components/Input';
-import { Btn }         from '../design/components/Btn';
-import { NerdLogo }    from './NerdLogo';
+import { useVault }        from '../crypto/VaultContext';
+import { useSync }         from '../sync/SyncContext';
+import { T }               from '../design/components/T';
+import { Box }             from '../design/components/Box';
+import { Input }           from '../design/components/Input';
+import { Btn }             from '../design/components/Btn';
+import { NerdLogo }        from './NerdLogo';
+import { SyncOnboarding }  from './SyncOnboarding';
 import { Colors, Spacing } from '../design/tokens';
 
 interface Props {
@@ -35,10 +37,12 @@ export function AuthGuard({ children }: Props) {
 
 function SetupScreen() {
   const vault = useVault();
-  const [password, setPassword]   = useState('');
-  const [confirm,  setConfirm]    = useState('');
-  const [loading,  setLoading]    = useState(false);
-  const [error,    setError]      = useState('');
+  const sync  = useSync();
+  const [password,        setPassword]        = useState('');
+  const [confirm,         setConfirm]         = useState('');
+  const [loading,         setLoading]         = useState(false);
+  const [error,           setError]           = useState('');
+  const [showOnboarding,  setShowOnboarding]  = useState(false);
 
   async function handleCreate() {
     if (password.length < 12) {
@@ -53,11 +57,14 @@ function SetupScreen() {
     setLoading(true);
     const result = await vault.create(password);
     setLoading(false);
-    if (!result.ok) setError(result.error);
+    if (!result.ok) { setError(result.error); return; }
+    if (!sync.hasConfigured) setShowOnboarding(true);
   }
 
   return (
-    <Shell title="INITIALISE VAULT">
+    <>
+      <SyncOnboarding visible={showOnboarding} onDone={() => setShowOnboarding(false)} />
+      <Shell title="INITIALISE VAULT">
       <T variant="muted" style={styles.hint}>
         Choose a master password. It will be used to encrypt all your notes.
         You cannot recover it if lost.
@@ -92,6 +99,7 @@ function SetupScreen() {
         style={styles.btn}
       />
     </Shell>
+    </>
   );
 }
 

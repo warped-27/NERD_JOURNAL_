@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAi, GEMINI_MODELS } from '../src/ai/AiContext';
+import { useSync } from '../src/sync/SyncContext';
+import { useNotes } from '../src/notes/NotesContext';
+import { webdavPush, webdavPull, testWebDavConnection } from '../src/sync/providers/webdavSync';
+import { exportToFile, importFromFile } from '../src/sync/providers/fileSync';
 import { Box } from '../src/design/components/Box';
 import { T } from '../src/design/components/T';
 import { Input } from '../src/design/components/Input';
@@ -10,9 +14,20 @@ import { Colors, Spacing } from '../src/design/tokens';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const ai = useAi();
+  const ai    = useAi();
+  const sync  = useSync();
+  const notes = useNotes();
   const [key,   setKey]   = useState(ai.apiKey ?? '');
   const [saved, setSaved] = useState(false);
+
+  // WebDAV form state (seeded from stored config)
+  const wdCfg  = sync.config.provider === 'webdav' ? sync.config.webdav : undefined;
+  const [wdUrl,      setWdUrl]      = useState(wdCfg?.url      ?? '');
+  const [wdUser,     setWdUser]     = useState(wdCfg?.username  ?? '');
+  const [wdPass,     setWdPass]     = useState(wdCfg?.password  ?? '');
+  const [wdTesting,  setWdTesting]  = useState(false);
+  const [wdSyncing,  setWdSyncing]  = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
 
   async function handleSave() {
     await ai.setApiKey(key);
@@ -23,6 +38,69 @@ export default function SettingsScreen() {
   async function handleClear() {
     await ai.clearApiKey();
     setKey('');
+  }
+
+  async function handleWebDavSave() {
+    const url = wdUrl.trim();
+    if (!url) return;
+    setWdTesting(true);
+    setSyncStatus('');
+    try {
+      await testWebDavConnection({ url, username: wdUser.trim(), password: wdPass });
+      await sync.setConfig({ provider: 'webdav', webdav: { url, username: wdUser.trim(), password: wdPass } });
+      setSyncStatus('WebDAV configured ✓');
+    } catch (e) {
+      setSyncStatus(e instanceof Error ? e.message : 'Connection test failed');
+    } finally {
+      setWdTesting(false);
+    }
+  }
+
+  async function handleSyncNow() {
+    if (sync.config.provider !== 'webdav' || !sync.config.webdav) return;
+    setWdSyncing(true);
+    setSyncStatus('');
+    try {
+      const bundle  = await notes.exportBundle();
+      const remote  = await webdavPull(sync.config.webdav);
+      if (remote) await notes.importBundle(remote);
+      const merged  = await notes.exportBundle();
+      await webdavPush(sync.config.webdav, merged);
+      sync.setLastSyncAt(Date.now());
+      setSyncStatus('Sync complete ✓');
+    } catch (e) {
+      setSyncStatus(e instanceof Error ? e.message : 'Sync failed');
+    } finally {
+      setWdSyncing(false);
+    }
+  }
+
+  async function handleDisconnectWebDav() {
+    await sync.setConfig({ provider: 'none' });
+    setSyncStatus('WebDAV disconnected');
+  }
+
+  async function handleExportFile() {
+    setSyncStatus('');
+    try {
+      const bundle = await notes.exportBundle();
+      await exportToFile(bundle);
+      setSyncStatus('Export complete ✓');
+    } catch (e) {
+      setSyncStatus(e instanceof Error ? e.message : 'Export failed');
+    }
+  }
+
+  async function handleImportFile() {
+    setSyncStatus('');
+    try {
+      const bundle = await importFromFile();
+      if (!bundle) { setSyncStatus('Import cancelled'); return; }
+      const result = await notes.importBundle(bundle);
+      setSyncStatus(`Imported ${result.imported} note(s) ✓`);
+    } catch (e) {
+      setSyncStatus(e instanceof Error ? e.message : 'Import failed');
+    }
   }
 
   return (
@@ -122,6 +200,124 @@ export default function SettingsScreen() {
             </Pressable>
           );
         })}
+
+        {/* ─── SYNC ─── */}
+        <T variant="heading" style={[styles.section, styles.syncHeading]}>
+          SYNC
+          {!sync.hasConfigured && (
+            <T variant="caption" style={styles.warnBadge}> ⚠ NOT CONFIGURED</T>
+          )}
+        </T>
+
+        {!sync.hasConfigured && (
+          <T variant="muted" style={[styles.hint, styles.warnText]}>
+            Notes exist only on this device. Configure sync to back up and share
+            across devices.
+          </T>
+        )}
+
+        {/* WebDAV form */}
+        <T variant="label" style={styles.label}>WEBDAV / NEXTCLOUD</T>
+        <T variant="muted" style={styles.hint}>
+          Nextcloud, ownCloud, Syncthing WebDAV, or any standard WebDAV server.
+        </T>
+        <Input
+          value={wdUrl}
+          onChangeText={setWdUrl}
+          placeholder="https://cloud.example.com/remote.php/dav/files/user"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          style={styles.input}
+          testID="sync-webdav-url"
+        />
+        <Input
+          value={wdUser}
+          onChangeText={setWdUser}
+          placeholder="username"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+          testID="sync-webdav-user"
+        />
+        <Input
+          value={wdPass}
+          onChangeText={setWdPass}
+          placeholder="password or app token"
+          secureTextEntry
+          style={styles.input}
+          testID="sync-webdav-pass"
+        />
+        <View style={styles.actions}>
+          <Btn
+            label={wdTesting ? 'TESTING…' : 'TEST & SAVE'}
+            variant="primary"
+            onPress={handleWebDavSave}
+            loading={wdTesting}
+            style={styles.btn}
+            testID="sync-webdav-save"
+          />
+          {sync.config.provider === 'webdav' && (
+            <Btn
+              label={wdSyncing ? 'SYNCING…' : 'SYNC NOW'}
+              variant="ghost"
+              onPress={handleSyncNow}
+              loading={wdSyncing}
+              style={styles.btn}
+              testID="sync-now"
+            />
+          )}
+        </View>
+        {sync.config.provider === 'webdav' && (
+          <>
+            <T variant="muted" style={styles.status}>
+              {sync.lastSyncAt
+                ? `Last sync: ${new Date(sync.lastSyncAt).toLocaleString()}`
+                : 'Never synced on this session'}
+            </T>
+            <Btn
+              label="DISCONNECT WEBDAV"
+              variant="danger"
+              onPress={handleDisconnectWebDav}
+              style={[styles.btn, styles.disconnectBtn]}
+              testID="sync-disconnect"
+            />
+          </>
+        )}
+
+        {/* File export/import */}
+        <T variant="label" style={[styles.label, styles.modelTitle]}>BACKUP FILE</T>
+        <T variant="muted" style={styles.hint}>
+          Export an encrypted vault bundle (.njvault) to file, or import one to
+          restore notes from another device.
+        </T>
+        <View style={styles.actions}>
+          <Btn
+            label="EXPORT FILE"
+            variant="ghost"
+            onPress={handleExportFile}
+            style={styles.btn}
+            testID="sync-export-file"
+          />
+          <Btn
+            label="IMPORT FILE"
+            variant="ghost"
+            onPress={handleImportFile}
+            style={styles.btn}
+            testID="sync-import-file"
+          />
+        </View>
+
+        {syncStatus ? (
+          <T
+            variant={syncStatus.includes('✓') ? 'label' : 'error'}
+            style={styles.status}
+            testID="sync-status"
+          >
+            {syncStatus}
+          </T>
+        ) : null}
+
       </ScrollView>
     </Box>
   );
@@ -176,5 +372,9 @@ const styles = StyleSheet.create({
     borderColor:  Colors.greenDim,
   },
   radioActive: { backgroundColor: Colors.green, borderColor: Colors.green },
-  modelLabel: { flex: 1 },
+  modelLabel:     { flex: 1 },
+  syncHeading:    { marginTop: Spacing.xl, marginBottom: Spacing.sm },
+  warnBadge:      { color: Colors.warning, fontSize: 11 },
+  warnText:       { color: Colors.warning },
+  disconnectBtn:  { marginTop: Spacing.xs },
 });
