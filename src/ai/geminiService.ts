@@ -23,13 +23,17 @@ interface GeminiApiResponse {
 export async function callGemini(req: GeminiRequest): Promise<Result<string, Error>> {
   const { prompt, apiKey, model = DEFAULT_GEMINI_MODEL, maxOutputTokens = 1024, temperature = 0.7 } = req;
 
-  const url = `${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  // API key in header, not query param — prevents key leakage in server logs / packet captures
+  const url = `${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent`;
 
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature, maxOutputTokens },

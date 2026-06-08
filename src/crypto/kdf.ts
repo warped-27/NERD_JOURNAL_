@@ -29,8 +29,9 @@ export async function deriveKey(
   }
   // argon2id is synchronous but CPU-heavy — wrap in a microtask so callers can await
   return new Promise((resolve, reject) => {
+    const passwordBytes = toUtf8(password);
     try {
-      const key = argon2id(toUtf8(password), salt, {
+      const key = argon2id(passwordBytes, salt, {
         t: params.t,
         m: params.m,
         p: params.p,
@@ -39,6 +40,8 @@ export async function deriveKey(
       resolve(key);
     } catch (e) {
       reject(e);
+    } finally {
+      passwordBytes.fill(0);
     }
   });
 }

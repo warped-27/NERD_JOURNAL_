@@ -11,9 +11,10 @@ import { err } from '../lib/result';
 import { secretGet, secretSet, secretDelete } from '../crypto/secureSecrets';
 import { askAi } from './aiService';
 
-const AI_APIKEY_KEY  = 'nj_gemini_apikey';
-const AI_CONSENT_KEY = 'nj_gemini_consent';
-const AI_MODEL_KEY   = 'nj_gemini_model';
+const AI_APIKEY_KEY       = 'nj_gemini_apikey';
+const AI_CONSENT_KEY      = 'nj_gemini_consent';
+const AI_MODEL_KEY        = 'nj_gemini_model';
+const AI_AUTOENRICH_KEY   = 'nj_gemini_autoenrich';
 
 export const GEMINI_MODELS = [
   { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite (default)' },
@@ -34,12 +35,15 @@ interface AiContextValue {
   setModel: (model: string) => Promise<void>;
   hasConsented: boolean;
   giveConsent: () => Promise<void>;
+  declineConsent: () => void;
   pendingConsent: boolean;
   requestWithConsent: (
     noteContent: string,
     instruction: string,
   ) => Promise<Result<string, Error>>;
   isLoading: boolean;
+  autoEnrich: boolean;
+  setAutoEnrich: (v: boolean) => Promise<void>;
 }
 
 const AiContext = createContext<AiContextValue | null>(null);
@@ -50,6 +54,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const [hasConsented, setHasConsented] = useState(false);
   const [pendingConsent, setPendingConsent] = useState(false);
   const [isLoading, setIsLoading]  = useState(false);
+  const [autoEnrich, setAutoEnrichState] = useState(false);
 
   const pendingCallRef = useRef<{
     noteContent: string;
@@ -58,12 +63,14 @@ export function AiProvider({ children }: { children: ReactNode }) {
   } | null>(null);
 
   const loadSettings = useCallback(async () => {
-    const key     = await secretGet(AI_APIKEY_KEY);
-    const consent = await secretGet(AI_CONSENT_KEY);
-    const saved   = await secretGet(AI_MODEL_KEY);
+    const key          = await secretGet(AI_APIKEY_KEY);
+    const consent      = await secretGet(AI_CONSENT_KEY);
+    const saved        = await secretGet(AI_MODEL_KEY);
+    const autoEnrichSaved = await secretGet(AI_AUTOENRICH_KEY);
     setApiKeyState(key);
     setHasConsented(consent === '1');
     if (saved) setModelState(saved);
+    setAutoEnrichState(autoEnrichSaved === '1');
   }, []);
 
   React.useEffect(() => { void loadSettings(); }, [loadSettings]);
@@ -103,6 +110,20 @@ export function AiProvider({ children }: { children: ReactNode }) {
     }
   }, [apiKey, model]);
 
+  const declineConsent = useCallback(() => {
+    const pending = pendingCallRef.current;
+    if (pending) {
+      pendingCallRef.current = null;
+      pending.resolve(err(new Error('AI consent declined')));
+    }
+    setPendingConsent(false);
+  }, []);
+
+  const setAutoEnrich = useCallback(async (v: boolean) => {
+    await secretSet(AI_AUTOENRICH_KEY, v ? '1' : '0');
+    setAutoEnrichState(v);
+  }, []);
+
   const requestWithConsent = useCallback(
     (noteContent: string, instruction: string): Promise<Result<string, Error>> => {
       if (!apiKey) return Promise.resolve(err(new Error('No API key configured')));
@@ -132,9 +153,12 @@ export function AiProvider({ children }: { children: ReactNode }) {
         setModel,
         hasConsented,
         giveConsent,
+        declineConsent,
         pendingConsent,
         requestWithConsent,
         isLoading,
+        autoEnrich,
+        setAutoEnrich,
       }}
     >
       {children}

@@ -30,9 +30,12 @@ function makeAiCtx(overrides: Partial<ReturnType<typeof useAi>> = {}): ReturnTyp
     setModel:           jest.fn(),
     hasConsented:       true,
     giveConsent:        jest.fn(),
+    declineConsent:     jest.fn(),
     pendingConsent:     false,
     requestWithConsent: jest.fn(),
     isLoading:          false,
+    autoEnrich:         false,
+    setAutoEnrich:      jest.fn(),
     ...overrides,
   };
 }

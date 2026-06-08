@@ -86,6 +86,10 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
 
   const handleTranscribe = useCallback(async () => {
     if (!audioBase64 || !ai.apiKey) return;
+    if (!ai.hasConsented) {
+      setError('AI consent required. Tap ASK AI in the note editor to enable AI features first.');
+      return;
+    }
     setState('transcribing');
     setError('');
     const result = await transcribeAudio(audioBase64, 'audio/m4a', ai.apiKey, ai.model);
@@ -104,7 +108,7 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
       setError(result.error.message);
       setState('recorded');
     }
-  }, [audioBase64, ai.apiKey, ai.model, duration, onAdd]);
+  }, [audioBase64, ai.apiKey, ai.model, ai.hasConsented, duration, onAdd]);
 
   const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 

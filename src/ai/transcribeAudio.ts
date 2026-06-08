@@ -4,6 +4,20 @@ import { DEFAULT_GEMINI_MODEL } from './geminiService';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+const RATE_WINDOW_MS = 60_000;
+const RATE_LIMIT     = 5;
+const callTimestamps: number[] = [];
+
+function checkRateLimit(): boolean {
+  const now = Date.now();
+  while (callTimestamps.length > 0 && callTimestamps[0]! < now - RATE_WINDOW_MS) {
+    callTimestamps.shift();
+  }
+  if (callTimestamps.length >= RATE_LIMIT) return false;
+  callTimestamps.push(now);
+  return true;
+}
+
 export async function transcribeAudio(
   base64Audio: string,
   mimeType: string,
@@ -11,14 +25,15 @@ export async function transcribeAudio(
   model = DEFAULT_GEMINI_MODEL,
 ): Promise<Result<string, Error>> {
   if (!apiKey.trim()) return err(new Error('No API key configured'));
+  if (!checkRateLimit()) return err(new Error('Transcription rate limit reached (5 per minute)'));
 
-  const url = `${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent`;
 
   let response: Response;
   try {
     response = await fetch(url, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{
           parts: [

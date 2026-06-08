@@ -11,6 +11,14 @@ import { useAi }           from '../ai/AiContext';
 import { Colors, Spacing } from '../design/tokens';
 import type { Note, Attachment } from '../notes/Note';
 
+const MAX_ATTACHMENTS  = 10;
+const MAX_TOTAL_BYTES  = 20 * 1024 * 1024; // 20 MB
+
+function estimateBytes(a: Attachment): number {
+  if (a.data) return Math.ceil(a.data.length * 0.75);
+  return a.size ?? 0;
+}
+
 interface Props {
   initialTitle:        string;
   initialContent:      string;
@@ -71,6 +79,15 @@ export function NoteEditor({
   }
 
   function addAttachment(a: Attachment) {
+    if (attachments.length >= MAX_ATTACHMENTS) {
+      setError(`Maximum ${MAX_ATTACHMENTS} attachments per note.`);
+      return;
+    }
+    const totalBytes = attachments.reduce((sum, x) => sum + estimateBytes(x), 0);
+    if (totalBytes + estimateBytes(a) > MAX_TOTAL_BYTES) {
+      setError('Total attachment size would exceed the 20 MB limit.');
+      return;
+    }
     setAttachments((prev) => [...prev, a]);
   }
 

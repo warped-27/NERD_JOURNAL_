@@ -43,10 +43,7 @@ export function AiAssistant({ noteContent }: Props) {
       <PrivacyConsentDialog
         visible={ai.pendingConsent}
         onAccept={ai.giveConsent}
-        onDecline={() => {
-          // Dismiss: let the pending promise time out via user navigation
-          // We set response to nothing; the pending call will not resolve
-        }}
+        onDecline={ai.declineConsent}
       />
 
       <View style={styles.inputRow}>

@@ -75,9 +75,28 @@ export default function SettingsScreen() {
 
         {ai.apiKey && (
           <T variant="muted" style={styles.status} testID="settings-key-status">
-            Key configured: {ai.apiKey.slice(0, 8)}…
+            Key configured: ••••••••
           </T>
         )}
+
+        {/* ─── AUTO-ENRICH ─── */}
+        <T variant="label" style={[styles.label, styles.modelTitle]}>AUTO-ENRICH NOTES</T>
+        <T variant="muted" style={styles.hint}>
+          When enabled, notes are automatically tagged and summarised by AI after each save.
+          Your note content is sent to Gemini. Requires consent and a configured API key.
+        </T>
+        <Pressable
+          style={[styles.toggleRow, ai.autoEnrich && styles.toggleRowActive]}
+          onPress={() => ai.setAutoEnrich(!ai.autoEnrich)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: ai.autoEnrich }}
+          testID="settings-autoenrich"
+        >
+          <View style={[styles.radio, ai.autoEnrich && styles.radioActive]} />
+          <T variant={ai.autoEnrich ? 'label' : 'muted'} style={styles.modelLabel}>
+            {ai.autoEnrich ? 'ENABLED' : 'DISABLED'}
+          </T>
+        </Pressable>
 
         {/* ─── MODEL ─── */}
         <T variant="label" style={[styles.label, styles.modelTitle]}>AI MODEL</T>
@@ -138,6 +157,17 @@ const styles = StyleSheet.create({
     gap:            Spacing.sm,
   },
   modelRowActive: { borderColor: Colors.green, backgroundColor: Colors.greenBg },
+  toggleRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+    borderWidth:    1,
+    borderColor:    Colors.border,
+    marginBottom:   Spacing.md,
+    gap:            Spacing.sm,
+  },
+  toggleRowActive: { borderColor: Colors.green, backgroundColor: Colors.greenBg },
   radio: {
     width:        12,
     height:       12,

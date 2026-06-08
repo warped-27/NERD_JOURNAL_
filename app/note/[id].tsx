@@ -43,7 +43,7 @@ export default function NoteScreen() {
     if (!id) return;
     await updateNote(id, patch);
     // Fire enrichment asynchronously — does not block navigation
-    if (ai.apiKey && ai.hasConsented && (patch.title || patch.content)) {
+    if (ai.apiKey && ai.hasConsented && ai.autoEnrich && (patch.title || patch.content)) {
       enrichNote(patch.title, patch.content, ai.apiKey, ai.model).then((result) => {
         if (result.ok) void patchNote(id, result.value);
       });

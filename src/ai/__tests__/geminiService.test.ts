@@ -35,12 +35,15 @@ describe('callGemini', () => {
     if (result.ok) expect(result.value).toBe('Hello world');
   });
 
-  it('includes API key in URL (not body)', async () => {
+  it('sends API key in x-goog-api-key header (not in URL or body)', async () => {
     mockOk('response');
     await callGemini({ prompt: 'test', apiKey: 'MY_KEY' });
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain('key=MY_KEY');
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    const url     = mockFetch.mock.calls[0][0] as string;
+    const options = mockFetch.mock.calls[0][1] as RequestInit;
+    const headers = options.headers as Record<string, string>;
+    expect(url).not.toContain('MY_KEY');
+    expect(headers['x-goog-api-key']).toBe('MY_KEY');
+    const body = JSON.parse(options.body as string);
     expect(JSON.stringify(body)).not.toContain('MY_KEY');
   });
 

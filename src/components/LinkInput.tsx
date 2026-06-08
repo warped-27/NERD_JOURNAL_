@@ -10,10 +10,15 @@ interface Props {
   onCancel: () => void;
 }
 
+const PRIVATE_HOSTNAME =
+  /^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|::1|0\.0\.0\.0)/i;
+
 function isValidUrl(s: string): boolean {
   try {
     const u = new URL(s);
-    return u.protocol === 'http:' || u.protocol === 'https:';
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    if (PRIVATE_HOSTNAME.test(u.hostname)) return false;
+    return true;
   } catch {
     return false;
   }
