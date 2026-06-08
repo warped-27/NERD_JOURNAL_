@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAi, GEMINI_MODELS } from '../src/ai/AiContext';
+import { testOpenAiCompatConnection } from '../src/ai/providers/openAiCompatProvider';
 import { useSync } from '../src/sync/SyncContext';
 import { useNotes } from '../src/notes/NotesContext';
 import { webdavPush, webdavPull, testWebDavConnection } from '../src/sync/providers/webdavSync';
@@ -19,6 +20,20 @@ export default function SettingsScreen() {
   const notes = useNotes();
   const [key,   setKey]   = useState(ai.apiKey ?? '');
   const [saved, setSaved] = useState(false);
+
+  // Ollama form state
+  const [ollamaEnabled, setOllamaEnabled] = useState(ai.ollamaConfig.enabled);
+  const [ollamaUrl,     setOllamaUrl]     = useState(ai.ollamaConfig.baseUrl);
+  const [ollamaModel,   setOllamaModel]   = useState(ai.ollamaConfig.model);
+  const [ollamaTesting, setOllamaTesting] = useState(false);
+  const [ollamaStatus,  setOllamaStatus]  = useState('');
+
+  // MLX form state
+  const [mlxEnabled, setMlxEnabled] = useState(ai.mlxConfig.enabled);
+  const [mlxUrl,     setMlxUrl]     = useState(ai.mlxConfig.baseUrl);
+  const [mlxModel,   setMlxModel]   = useState(ai.mlxConfig.model);
+  const [mlxTesting, setMlxTesting] = useState(false);
+  const [mlxStatus,  setMlxStatus]  = useState('');
 
   // WebDAV form state (seeded from stored config)
   const wdCfg  = sync.config.provider === 'webdav' ? sync.config.webdav : undefined;
@@ -38,6 +53,38 @@ export default function SettingsScreen() {
   async function handleClear() {
     await ai.clearApiKey();
     setKey('');
+  }
+
+  async function handleOllamaSave() {
+    const url = ollamaUrl.trim();
+    if (!url) return;
+    setOllamaTesting(true);
+    setOllamaStatus('');
+    try {
+      if (ollamaEnabled) await testOpenAiCompatConnection(url);
+      await ai.setOllamaConfig({ enabled: ollamaEnabled, baseUrl: url, model: ollamaModel.trim() });
+      setOllamaStatus(ollamaEnabled ? 'Ollama configured ✓' : 'Ollama disabled ✓');
+    } catch (e) {
+      setOllamaStatus(e instanceof Error ? e.message : 'Connection test failed');
+    } finally {
+      setOllamaTesting(false);
+    }
+  }
+
+  async function handleMlxSave() {
+    const url = mlxUrl.trim();
+    if (!url) return;
+    setMlxTesting(true);
+    setMlxStatus('');
+    try {
+      if (mlxEnabled) await testOpenAiCompatConnection(url);
+      await ai.setMlxConfig({ enabled: mlxEnabled, baseUrl: url, model: mlxModel.trim() });
+      setMlxStatus(mlxEnabled ? 'MLX configured ✓' : 'MLX disabled ✓');
+    } catch (e) {
+      setMlxStatus(e instanceof Error ? e.message : 'Connection test failed');
+    } finally {
+      setMlxTesting(false);
+    }
   }
 
   async function handleWebDavSave() {
@@ -200,6 +247,121 @@ export default function SettingsScreen() {
             </Pressable>
           );
         })}
+
+        {/* ─── OLLAMA ─── */}
+        <T variant="heading" style={[styles.section, styles.syncHeading]}>LOCAL AI</T>
+        <T variant="muted" style={styles.hint}>
+          Run a local model on your machine or LAN. Local providers are tried first
+          before falling back to Gemini. Your notes never leave the device.
+        </T>
+
+        <T variant="label" style={styles.label}>OLLAMA (LAN / TAILSCALE)</T>
+        <T variant="muted" style={styles.hint}>
+          Install Ollama, pull a model (e.g. llama3.2:3b), then enable here.
+        </T>
+        <Pressable
+          style={[styles.toggleRow, ollamaEnabled && styles.toggleRowActive]}
+          onPress={() => setOllamaEnabled(!ollamaEnabled)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: ollamaEnabled }}
+          testID="ollama-toggle"
+        >
+          <View style={[styles.radio, ollamaEnabled && styles.radioActive]} />
+          <T variant={ollamaEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
+            {ollamaEnabled ? 'ENABLED' : 'DISABLED'}
+          </T>
+        </Pressable>
+        <Input
+          value={ollamaUrl}
+          onChangeText={setOllamaUrl}
+          placeholder="http://localhost:11434"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          style={styles.input}
+          testID="ollama-url"
+        />
+        <Input
+          value={ollamaModel}
+          onChangeText={setOllamaModel}
+          placeholder="llama3.2:3b"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+          testID="ollama-model"
+        />
+        <Btn
+          label={ollamaTesting ? 'TESTING…' : 'SAVE OLLAMA'}
+          variant="primary"
+          onPress={handleOllamaSave}
+          loading={ollamaTesting}
+          style={[styles.btn, styles.fullBtn]}
+          testID="ollama-save"
+        />
+        {ollamaStatus ? (
+          <T
+            variant={ollamaStatus.includes('✓') ? 'label' : 'error'}
+            style={[styles.status, styles.sectionGap]}
+            testID="ollama-status"
+          >
+            {ollamaStatus}
+          </T>
+        ) : null}
+
+        {/* ─── MLX ─── */}
+        <T variant="label" style={[styles.label, styles.modelTitle]}>MLX (APPLE SILICON)</T>
+        <T variant="muted" style={styles.hint}>
+          Run mlx-lm on macOS with Apple Silicon for fast on-device inference.
+          Start the server: mlx_lm.server --model &lt;model&gt; --port 8080
+        </T>
+        <Pressable
+          style={[styles.toggleRow, mlxEnabled && styles.toggleRowActive]}
+          onPress={() => setMlxEnabled(!mlxEnabled)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: mlxEnabled }}
+          testID="mlx-toggle"
+        >
+          <View style={[styles.radio, mlxEnabled && styles.radioActive]} />
+          <T variant={mlxEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
+            {mlxEnabled ? 'ENABLED' : 'DISABLED'}
+          </T>
+        </Pressable>
+        <Input
+          value={mlxUrl}
+          onChangeText={setMlxUrl}
+          placeholder="http://localhost:8080"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          style={styles.input}
+          testID="mlx-url"
+        />
+        <Input
+          value={mlxModel}
+          onChangeText={setMlxModel}
+          placeholder="mlx-community/Llama-3.2-3B-Instruct-4bit"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+          testID="mlx-model"
+        />
+        <Btn
+          label={mlxTesting ? 'TESTING…' : 'SAVE MLX'}
+          variant="primary"
+          onPress={handleMlxSave}
+          loading={mlxTesting}
+          style={[styles.btn, styles.fullBtn]}
+          testID="mlx-save"
+        />
+        {mlxStatus ? (
+          <T
+            variant={mlxStatus.includes('✓') ? 'label' : 'error'}
+            style={[styles.status, styles.sectionGap]}
+            testID="mlx-status"
+          >
+            {mlxStatus}
+          </T>
+        ) : null}
 
         {/* ─── SYNC ─── */}
         <T variant="heading" style={[styles.section, styles.syncHeading]}>
@@ -377,4 +539,6 @@ const styles = StyleSheet.create({
   warnBadge:      { color: Colors.warning, fontSize: 11 },
   warnText:       { color: Colors.warning },
   disconnectBtn:  { marginTop: Spacing.xs },
+  fullBtn:        { alignSelf: 'stretch' },
+  sectionGap:     { marginBottom: Spacing.md },
 });

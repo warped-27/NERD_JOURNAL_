@@ -1,7 +1,6 @@
 import type { Result } from '../lib/result';
 import { ok, err } from '../lib/result';
 import { sanitizeInput } from './sanitize';
-import { callGemini } from './geminiService';
 
 export interface NoteEnrichment {
   tags:    string[];
@@ -39,10 +38,9 @@ function buildPrompt(title: string, content: string): string {
 }
 
 export async function enrichNote(
-  title:   string,
-  content: string,
-  apiKey:  string,
-  model?:  string,
+  title:     string,
+  content:   string,
+  completer: (prompt: string) => Promise<Result<string, Error>>,
 ): Promise<Result<NoteEnrichment, Error>> {
   const safeTitle   = sanitizeInput(title);
   const safeContent = sanitizeInput(content);
@@ -51,13 +49,7 @@ export async function enrichNote(
     return err(new Error('Note is empty — nothing to enrich'));
   }
 
-  const result = await callGemini({
-    prompt:          buildPrompt(safeTitle, safeContent),
-    apiKey,
-    model,
-    maxOutputTokens: 256,
-    temperature:     0.3,
-  });
+  const result = await completer(buildPrompt(safeTitle, safeContent));
 
   if (!result.ok) return result;
 
