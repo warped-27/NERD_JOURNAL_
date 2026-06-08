@@ -30,11 +30,18 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   const vault    = useVault();
   const storeRef = useRef<ReturnType<typeof createNotesStore> | null>(null);
   const dbRef    = useRef<Database | null>(null);
+  const unsubRef = useRef<(() => void) | null>(null);
   const [notes,     setNotes]     = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!vault.isUnlocked) {
+      // Explicitly zero the store's notes array before dropping the reference —
+      // JS strings cannot be zeroed, but removing all references makes them
+      // GC-eligible as quickly as possible after lock.
+      storeRef.current?.setState({ notes: [], isLoading: false });
+      unsubRef.current?.();
+      unsubRef.current = null;
       storeRef.current = null;
       setNotes([]);
       return;
@@ -52,12 +59,16 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
       const repo  = new NotesRepository(db, key);
       const store = createNotesStore(repo);
       storeRef.current = store;
-      // Subscribe to store state changes → mirror into React state
-      store.subscribe((s) => { setNotes([...s.notes]); setIsLoading(s.isLoading); });
+      unsubRef.current = store.subscribe((s) => { setNotes([...s.notes]); setIsLoading(s.isLoading); });
       await store.getState().loadNotes();
     })();
 
-    return () => { cancelled = true; dbRef.current = null; };
+    return () => {
+      cancelled = true;
+      dbRef.current = null;
+      unsubRef.current?.();
+      unsubRef.current = null;
+    };
   }, [vault.isUnlocked]);
 
   const createNote = useCallback(async (draft: Pick<Note, 'title' | 'content'> & { attachments?: Note['attachments'] }): Promise<Note | null> => {
