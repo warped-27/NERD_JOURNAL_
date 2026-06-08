@@ -6,7 +6,18 @@ import React from 'react';
 import { Text, type TextProps, StyleSheet } from 'react-native';
 import { Colors, Typography } from '../tokens';
 
-type Variant = 'body' | 'label' | 'caption' | 'heading' | 'title' | 'mono' | 'error' | 'muted';
+type Variant =
+  | 'body'
+  | 'label'
+  | 'caption'
+  | 'heading'
+  | 'title'
+  | 'mono'
+  | 'error'
+  | 'muted'
+  | 'bright'
+  | 'kicker'
+  | 'dim';
 
 interface Props extends TextProps {
   variant?: Variant;
@@ -23,12 +34,68 @@ const base = {
 
 const styles = StyleSheet.create({
   base:    { ...base, fontSize: Typography.sizeMd },
-  body:    { fontSize: Typography.sizeMd, lineHeight: Typography.sizeMd * Typography.lineHeightNormal },
-  label:   { fontSize: Typography.sizeSm, letterSpacing: 1 },
-  caption: { fontSize: Typography.sizeXs, color: Colors.textMuted },
-  heading: { fontSize: Typography.sizeLg, fontFamily: Typography.fontFamily, color: Colors.green },
-  title:   { fontSize: Typography.size2xl, fontFamily: Typography.fontFamily, color: Colors.green },
-  mono:    { fontSize: Typography.sizeMd, fontFamily: Typography.fontFamily },
-  error:   { fontSize: Typography.sizeSm, color: Colors.error },
-  muted:   { fontSize: Typography.sizeSm, color: Colors.textMuted },
+
+  // Content variants
+  body:    {
+    fontSize:   Typography.sizeMd,
+    lineHeight: Typography.sizeMd * Typography.lineHeightNormal,
+    color:      Colors.textPrimary,
+  },
+  bright:  {
+    fontSize:   Typography.sizeMd,
+    color:      Colors.textBright,
+    fontFamily: Typography.fontFamily,
+  },
+  muted:   {
+    fontSize: Typography.sizeSm,
+    color:    Colors.textSecondary,
+    lineHeight: Typography.sizeSm * Typography.lineHeightNormal,
+  },
+  dim:     {
+    fontSize: Typography.sizeXs,
+    color:    Colors.textMuted,
+  },
+
+  // Structure variants
+  heading: {
+    fontSize:   Typography.sizeLg,
+    fontFamily: Typography.fontFamilyBold,
+    color:      Colors.textBright,
+    letterSpacing: -0.3,
+  },
+  title: {
+    fontSize:      Typography.size2xl,
+    fontFamily:    Typography.fontFamilyBold,
+    color:         Colors.textBright,
+    letterSpacing: -1,
+    lineHeight:    Typography.size2xl * Typography.lineHeightTight,
+  },
+  label: {
+    fontSize:      Typography.sizeSm,
+    color:         Colors.textSecondary,
+    letterSpacing: Typography.trackingWide,
+    textTransform: 'uppercase' as const,
+  },
+  caption: {
+    fontSize:      Typography.sizeXs,
+    color:         Colors.textMuted,
+    letterSpacing: 0.5,
+  },
+  kicker: {
+    fontSize:      Typography.sizeXs,
+    color:         Colors.green,
+    letterSpacing: Typography.trackingXWide,
+    textTransform: 'uppercase' as const,
+  },
+
+  // Semantic variants
+  mono:  {
+    fontSize:   Typography.sizeMd,
+    fontFamily: Typography.fontFamily,
+    color:      Colors.green,
+  },
+  error: {
+    fontSize: Typography.sizeSm,
+    color:    Colors.error,
+  },
 });

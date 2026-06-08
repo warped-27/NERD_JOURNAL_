@@ -1,20 +1,28 @@
 import { Colors, Typography, Spacing, Radius } from '../tokens';
 
 describe('design tokens', () => {
-  it('background is pure black', () => {
-    expect(Colors.bg).toBe('#000000');
+  it('background is near-black (phosphor palette)', () => {
+    expect(Colors.bg).toBe('#04070a');
   });
 
-  it('primary text is matrix green', () => {
-    expect(Colors.textPrimary).toBe('#00ff41');
+  it('primary text is grey-green (not pure green)', () => {
+    expect(Colors.textPrimary).toBe('#cbd6cf');
+  });
+
+  it('primary accent is phosphor green', () => {
+    expect(Colors.green).toBe('#1cff9b');
   });
 
   it('border-radius is always 0', () => {
     expect(Radius.none).toBe(0);
   });
 
-  it('font family is SpaceMono', () => {
-    expect(Typography.fontFamily).toBe('SpaceMono');
+  it('font family is JetBrainsMono', () => {
+    expect(Typography.fontFamily).toBe('JetBrainsMono');
+  });
+
+  it('fallback font is SpaceMono', () => {
+    expect(Typography.fontFamilyFallback).toBe('SpaceMono');
   });
 
   it('spacing values form a 4pt grid', () => {
@@ -25,9 +33,8 @@ describe('design tokens', () => {
     expect(Spacing.xl % 4).toBe(0);
   });
 
-  it('no color contains border-radius or padding (tokens are pure values)', () => {
-    // spot-check: all Color values are valid CSS hex strings
-    for (const [k, v] of Object.entries(Colors)) {
+  it('all Color values are valid CSS hex strings', () => {
+    for (const [, v] of Object.entries(Colors)) {
       expect(v).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });

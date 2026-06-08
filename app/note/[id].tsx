@@ -61,11 +61,11 @@ export default function NoteScreen() {
   }
 
   return (
-    <Box style={styles.root}>
+    <Box screen style={styles.root}>
       {/* Nav bar */}
       <View style={styles.nav}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} testID="back-btn">
-          <T variant="label">← BACK</T>
+          <T variant="kicker">← back</T>
         </Pressable>
       </View>
 

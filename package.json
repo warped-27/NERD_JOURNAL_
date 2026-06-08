@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@noble/ciphers": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "expo": "^56.0.8",

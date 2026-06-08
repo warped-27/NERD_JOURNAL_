@@ -3,11 +3,12 @@ import {
   View, KeyboardAvoidingView, ScrollView,
   StyleSheet, Platform,
 } from 'react-native';
-import { useVault } from '../crypto/VaultContext';
-import { T }   from '../design/components/T';
-import { Box } from '../design/components/Box';
-import { Input } from '../design/components/Input';
-import { Btn } from '../design/components/Btn';
+import { useVault }    from '../crypto/VaultContext';
+import { T }           from '../design/components/T';
+import { Box }         from '../design/components/Box';
+import { Input }       from '../design/components/Input';
+import { Btn }         from '../design/components/Btn';
+import { NerdLogo }    from './NerdLogo';
 import { Colors, Spacing } from '../design/tokens';
 
 interface Props {
@@ -145,13 +146,15 @@ function UnlockScreen() {
 
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Box style={styles.root}>
+    <Box screen style={styles.root}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.kav}
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <T variant="title" style={styles.title}>{title}</T>
+          <NerdLogo size="lg" style={styles.logo} />
+          <View style={styles.rule} />
+          <T variant="kicker" style={styles.title}>{title}</T>
           {children}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -166,8 +169,15 @@ const styles = StyleSheet.create({
     flexGrow:       1,
     justifyContent: 'center',
     padding:        Spacing.xl,
+    zIndex:         3,
   },
-  title: { marginBottom: Spacing.xl },
+  logo:  { marginBottom: Spacing.lg },
+  rule: {
+    height:          1,
+    backgroundColor: Colors.border,
+    marginBottom:    Spacing.xl,
+  },
+  title: { marginBottom: Spacing.lg },
   hint:  { marginBottom: Spacing.lg },
   input: { marginBottom: Spacing.md },
   btn:   { marginTop: Spacing.md },

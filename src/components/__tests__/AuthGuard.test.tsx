@@ -11,6 +11,14 @@ jest.mock('react-native', () => ({
   ActivityIndicator:    'ActivityIndicator',
   ScrollView:           'ScrollView',
   KeyboardAvoidingView: 'KeyboardAvoidingView',
+  Animated: {
+    Value:    jest.fn().mockImplementation(() => ({ setValue: jest.fn() })),
+    timing:   jest.fn().mockReturnValue({}),
+    sequence: jest.fn().mockReturnValue({}),
+    delay:    jest.fn().mockReturnValue({}),
+    loop:     jest.fn().mockReturnValue({ start: jest.fn(), stop: jest.fn() }),
+    View:     'Animated.View',
+  },
   StyleSheet: {
     create: (s: object) => s,
     flatten: (s: unknown) => s,

@@ -37,13 +37,13 @@ export function Btn({ label, variant = 'primary', loading = false, style, disabl
 
 const styles = StyleSheet.create({
   base: {
-    borderWidth:  BorderWidth.normal,
-    borderRadius: 0,
+    borderWidth:       BorderWidth.normal,
+    borderRadius:      0,
     paddingVertical:   Spacing.sm,
     paddingHorizontal: Spacing.lg,
-    alignItems:   'center',
-    justifyContent: 'center',
-    minHeight:    44,
+    alignItems:        'center',
+    justifyContent:    'center',
+    minHeight:         44,
   },
   primary: {
     backgroundColor: Colors.green,
@@ -57,13 +57,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderColor:     Colors.error,
   },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.4 },
+  pressed:  { opacity: 0.75 },
+  disabled: { opacity: 0.35 },
   label: {
-    fontFamily: Typography.fontFamily,
-    letterSpacing: 1,
+    fontFamily:    Typography.fontFamily,
+    letterSpacing: Typography.trackingWide,
   },
-  primaryLabel:  { color: Colors.textInverse },
-  ghostLabel:    { color: Colors.textPrimary },
-  dangerLabel:   { color: Colors.error },
+  primaryLabel: { color: Colors.textInverse },
+  ghostLabel:   { color: Colors.textPrimary },
+  dangerLabel:  { color: Colors.error },
 });

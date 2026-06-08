@@ -26,11 +26,11 @@ export default function SettingsScreen() {
   }
 
   return (
-    <Box style={styles.root}>
+    <Box screen style={styles.root}>
       {/* Nav */}
       <View style={styles.nav}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} testID="settings-back">
-          <T variant="label">← BACK</T>
+          <T variant="kicker">← back</T>
         </Pressable>
       </View>
 

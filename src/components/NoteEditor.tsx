@@ -193,14 +193,15 @@ const styles = StyleSheet.create({
     marginBottom:  Spacing.md,
   },
   titleFlex:    { flex: 1, marginBottom: 0 },
-  titleInput:   { fontSize: 20, borderColor: Colors.greenMute },
+  titleInput:   { fontSize: 20, borderColor: Colors.border, color: Colors.textBright },
   autoTitleBtn: { width: 44, paddingHorizontal: 0 },
 
   contentInput: {
     flex:         1,
     minHeight:    240,
     marginBottom: Spacing.sm,
-    borderColor:  Colors.greenMute,
+    borderColor:  Colors.border,
+    color:        Colors.textPrimary,
   },
   enrichPanel: {
     borderWidth:    1,
