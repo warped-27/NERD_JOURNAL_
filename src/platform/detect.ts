@@ -8,13 +8,10 @@
  */
 
 export function isTauri(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    // Tauri v2 global (primary check)
-    ('__TAURI_INTERNALS__' in window ||
-    // Tauri v1 global (fallback during transition)
-    '__TAURI__' in window)
-  );
+  if (typeof window === 'undefined') return false;
+  // __TAURI_INTERNALS__ and __TAURI__ are both injected when withGlobalTauri: true
+  // is set in tauri.conf.json (required for Tauri v2 global API access)
+  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
 }
 
 export function isNativePlatform(): boolean {
