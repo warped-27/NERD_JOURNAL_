@@ -59,6 +59,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "web:tauri": "expo start --web --non-interactive",
     "export:web": "expo export --platform web",
     "dev:tauri": "tauri dev",
     "build:tauri": "tauri build",
