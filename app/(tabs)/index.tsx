@@ -1,17 +1,28 @@
-import React from 'react';
-import { FlatList, Pressable, StyleSheet, View, ActivityIndicator } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import {
+  FlatList, Pressable, StyleSheet, View,
+  ActivityIndicator, TextInput,
+} from 'react-native';
 import { useRouter, Link } from 'expo-router';
-import { useNotes }      from '../../src/notes/NotesContext';
-import { NoteCard }      from '../../src/components/NoteCard';
-import { NerdLogo }      from '../../src/components/NerdLogo';
-import { Box }           from '../../src/design/components/Box';
-import { T }             from '../../src/design/components/T';
-import { Colors, Spacing } from '../../src/design/tokens';
-import type { Note }     from '../../src/notes/Note';
+import { useNotes }        from '../../src/notes/NotesContext';
+import { NoteCard }        from '../../src/components/NoteCard';
+import { NerdLogo }        from '../../src/components/NerdLogo';
+import { Box }             from '../../src/design/components/Box';
+import { T }               from '../../src/design/components/T';
+import { Colors, Spacing, Typography } from '../../src/design/tokens';
+import { searchNotes }     from '../../src/notes/noteSearch';
+import type { Note }       from '../../src/notes/Note';
 
 export default function HomeScreen() {
   const { notes, isLoading, createNote } = useNotes();
   const router = useRouter();
+  const [query, setQuery] = useState('');
+
+  const displayNotes = useMemo<Note[]>(() => {
+    const q = query.trim();
+    if (!q) return notes;
+    return searchNotes(notes, q).map((r) => r.note);
+  }, [notes, query]);
 
   async function handleNew() {
     const note = await createNote({ title: '', content: '' });
@@ -21,6 +32,8 @@ export default function HomeScreen() {
   function handleOpen(note: Note) {
     router.push({ pathname: '/note/[id]', params: { id: note.id } });
   }
+
+  const isSearching = query.trim().length > 0;
 
   return (
     <Box screen style={styles.root}>
@@ -32,7 +45,9 @@ export default function HomeScreen() {
 
         <View style={styles.headerRight}>
           <T variant="caption" style={styles.noteCount}>
-            {notes.length} {notes.length === 1 ? 'entry' : 'entries'}
+            {isSearching
+              ? `${displayNotes.length} / ${notes.length}`
+              : `${notes.length} ${notes.length === 1 ? 'entry' : 'entries'}`}
           </T>
           <Link href="/settings" asChild>
             <Pressable testID="settings-btn" accessibilityLabel="Settings" style={styles.settingsBtn}>
@@ -40,6 +55,27 @@ export default function HomeScreen() {
             </Pressable>
           </Link>
         </View>
+      </View>
+
+      {/* ── Search bar ───────────────────────────────────────────── */}
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="search entries…"
+          placeholderTextColor={Colors.textMuted}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+          autoCapitalize="none"
+          autoCorrect={false}
+          testID="search-input"
+        />
+        {isSearching && (
+          <Pressable onPress={() => setQuery('')} style={styles.clearBtn} testID="search-clear">
+            <T variant="muted">✕</T>
+          </Pressable>
+        )}
       </View>
 
       {/* ── Rule ─────────────────────────────────────────────────── */}
@@ -50,18 +86,29 @@ export default function HomeScreen() {
         <ActivityIndicator color={Colors.green} style={styles.loader} />
       ) : (
         <FlatList
-          data={notes}
+          data={displayNotes}
           keyExtractor={(n) => n.id}
           renderItem={({ item }) => (
-            <NoteCard note={item} onPress={() => handleOpen(item)} />
+            <NoteCard note={item} onPress={() => handleOpen(item)} searchQuery={query.trim() || undefined} />
           )}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <T variant="kicker" style={styles.emptyKicker}>// no entries</T>
-              <T variant="muted" style={styles.emptyHint}>
-                Press + to write your first log.
-              </T>
+              {isSearching ? (
+                <>
+                  <T variant="kicker" style={styles.emptyKicker}>// no results</T>
+                  <T variant="muted" style={styles.emptyHint}>
+                    No entries match "{query}".
+                  </T>
+                </>
+              ) : (
+                <>
+                  <T variant="kicker" style={styles.emptyKicker}>// no entries</T>
+                  <T variant="muted" style={styles.emptyHint}>
+                    Press + to write your first log.
+                  </T>
+                </>
+              )}
             </View>
           }
         />
@@ -98,18 +145,39 @@ const styles = StyleSheet.create({
     alignItems:    'center',
     gap:           Spacing.md,
   },
-  noteCount: { color: Colors.textMuted },
+  noteCount:  { color: Colors.textMuted },
   settingsBtn: {
-    borderWidth:  1,
-    borderColor:  Colors.border,
+    borderWidth:       1,
+    borderColor:       Colors.border,
     paddingHorizontal: Spacing.sm,
     paddingVertical:   4,
+  },
+
+  searchRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    marginHorizontal:  Spacing.md,
+    marginBottom:      Spacing.sm,
+    borderWidth:       1,
+    borderColor:       Colors.border,
+    backgroundColor:   Colors.bgInput,
+  },
+  searchInput: {
+    flex:              1,
+    fontFamily:        Typography.fontFamily,
+    fontSize:          13,
+    color:             Colors.green,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical:   Spacing.xs,
+  },
+  clearBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical:   Spacing.xs,
   },
 
   rule: {
     height:          1,
     backgroundColor: Colors.border,
-    marginBottom:    0,
     zIndex:          3,
   },
 
@@ -131,7 +199,6 @@ const styles = StyleSheet.create({
     justifyContent:  'center',
     borderRadius:    0,
     zIndex:          10,
-    // glow
     shadowColor:     Colors.green,
     shadowOffset:    { width: 0, height: 0 },
     shadowOpacity:   0.6,

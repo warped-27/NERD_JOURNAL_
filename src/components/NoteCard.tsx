@@ -4,6 +4,7 @@ import { T }   from '../design/components/T';
 import { Box } from '../design/components/Box';
 import { Colors, Spacing, BorderWidth } from '../design/tokens';
 import type { Note } from '../notes/Note';
+import { contentSnippet } from '../notes/noteSearch';
 
 const PREVIEW_LENGTH = 100;
 
@@ -12,27 +13,28 @@ function formatDate(ts: number): string {
 }
 
 interface Props {
-  note:    Note;
-  onPress: () => void;
+  note:         Note;
+  onPress:      () => void;
+  searchQuery?: string;
 }
 
-export function NoteCard({ note, onPress }: Props) {
-  const preview = note.content.length > PREVIEW_LENGTH
-    ? note.content.slice(0, PREVIEW_LENGTH) + '…'
-    : note.content;
-
+export function NoteCard({ note, onPress, searchQuery }: Props) {
   const accentColor = note.palette?.[0] ?? Colors.border;
+
+  const preview = searchQuery
+    ? contentSnippet(note.content, searchQuery)
+    : note.summary
+      ? note.summary.replace(/\n/g, '  ')
+      : note.content.length > PREVIEW_LENGTH
+        ? note.content.slice(0, PREVIEW_LENGTH) + '…'
+        : note.content;
 
   return (
     <Pressable testID="note-card" onPress={onPress} style={({ pressed }) => [pressed && styles.pressed]}>
       <Box surface style={[styles.card, { borderColor: accentColor }]}>
         <T variant="heading" style={styles.title} numberOfLines={1}>{note.title || '(no title)'}</T>
 
-        {note.summary ? (
-          <T variant="muted" style={styles.preview} numberOfLines={2}>
-            {note.summary.replace(/\n/g, '  ')}
-          </T>
-        ) : preview ? (
+        {preview ? (
           <T variant="muted" style={styles.preview} numberOfLines={2}>{preview}</T>
         ) : null}
 
@@ -68,10 +70,10 @@ const styles = StyleSheet.create({
     marginBottom:   Spacing.xs,
   },
   tag: {
-    borderWidth:     1,
+    borderWidth:       1,
     paddingHorizontal: Spacing.xs,
-    paddingVertical:  2,
-    fontSize:         10,
+    paddingVertical:   2,
+    fontSize:          10,
   },
   date:    {},
   pressed: { opacity: 0.7 },
