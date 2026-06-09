@@ -1,4 +1,9 @@
 use keyring::{Entry, Error as KeyringError};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 
 const KEYRING_SERVICE: &str = "nerd_journal";
 
@@ -17,8 +22,7 @@ const ALLOWED_KEYS: &[&str] = &[
     "nj_sync_config",
     "nj_sync_meta",
     "nj_device_id",
-    "nj_biometric_enabled",
-    "nj_custom_config",
+    "nj_ondevice_model",
 ];
 
 fn validate_key(key: &str) -> Result<(), String> {
@@ -63,12 +67,11 @@ fn delete_secret(key: String) -> Result<(), String> {
     }
 }
 
-/// Read an arbitrary file as raw bytes.
-/// Used by the JS layer after a user selects a file via the OS dialog —
-/// the dialog approval implies user intent, so no capability scope is needed.
-#[tauri::command]
-fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
-    std::fs::read(&path).map_err(|e| e.to_string())
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -76,11 +79,39 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_tray::init())
+        .setup(|app| {
+            // System tray: left-click or "Open" to show, "Quit" to exit
+            let show = MenuItem::with_id(app, "show", "Open NERD_JOURNAL_", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .tooltip("NERD_JOURNAL_")
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => show_main_window(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_main_window(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_secret,
             set_secret,
             delete_secret,
-            read_file_bytes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running NERD_JOURNAL_");

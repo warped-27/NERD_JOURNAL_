@@ -1,47 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   FlatList, Pressable, StyleSheet, View,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter, Link }  from 'expo-router';
-import { useNotes }         from '../../src/notes/NotesContext';
-import { NoteCard }         from '../../src/components/NoteCard';
-import { NerdLogo }         from '../../src/components/NerdLogo';
-import { StatsStrip }       from '../../src/components/StatsStrip';
-import { AskModal }         from '../../src/components/AskModal';
-import { Box }              from '../../src/design/components/Box';
-import { T }                from '../../src/design/components/T';
-import { Colors, Spacing }  from '../../src/design/tokens';
-import type { Note }        from '../../src/notes/Note';
+import { useRouter, Link }          from 'expo-router';
+import { useNotes }                 from '../../src/notes/NotesContext';
+import { NoteCard }                 from '../../src/components/NoteCard';
+import { NerdLogo }                 from '../../src/components/NerdLogo';
+import { StatsStrip }               from '../../src/components/StatsStrip';
+import { AskModal }                 from '../../src/components/AskModal';
+import { DesktopPanel }             from '../../src/components/DesktopPanel';
+import { Box }                      from '../../src/design/components/Box';
+import { T }                        from '../../src/design/components/T';
+import { Colors, Spacing }          from '../../src/design/tokens';
+import { isTauri }                  from '../../src/platform/detect';
+import { useKeyboardShortcuts }     from '../../src/hooks/useKeyboardShortcuts';
+import type { Note }                from '../../src/notes/Note';
+
+const IS_DESKTOP = isTauri();
 
 export default function HomeScreen() {
   const { notes, isLoading, createNote } = useNotes();
   const router = useRouter();
   const [askVisible, setAskVisible] = useState(false);
 
-  async function handleNew() {
+  const handleNew = useCallback(async () => {
     const note = await createNote({ title: '', content: '' });
     if (note) router.push({ pathname: '/note/[id]', params: { id: note.id } });
-  }
+  }, [createNote, router]);
+
+  const handleAsk  = useCallback(() => setAskVisible(true),  []);
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+  }, [router]);
+
+  useKeyboardShortcuts({ onNewNote: handleNew, onAsk: handleAsk, onBack: handleBack });
 
   function handleOpen(note: Note) {
     router.push({ pathname: '/note/[id]', params: { id: note.id } });
   }
 
-  return (
-    <Box screen style={styles.root}>
-      {/* ── Header ───────────────────────────────────────────────── */}
+  const noteList = (
+    <>
+      {/* ── Header ───────────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <NerdLogo size="md" tagline="personal knowledge base" showDot />
         </View>
-
         <View style={styles.headerRight}>
           <T variant="caption" style={styles.noteCount}>
             {notes.length} {notes.length === 1 ? 'entry' : 'entries'}
           </T>
           <Pressable
-            onPress={() => setAskVisible(true)}
+            onPress={handleAsk}
             style={styles.askBtn}
             testID="ask-btn"
             accessibilityLabel="Ask your notes"
@@ -56,13 +67,11 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* ── Rule ─────────────────────────────────────────────────── */}
+      {/* ── Rule + Stats ─────────────────────────────────────── */}
       <View style={styles.rule} />
-
-      {/* ── Stats + Daily prompt ─────────────────────────────────── */}
       {!isLoading && <StatsStrip notes={notes} />}
 
-      {/* ── List ─────────────────────────────────────────────────── */}
+      {/* ── List ─────────────────────────────────────────────── */}
       {isLoading ? (
         <ActivityIndicator color={Colors.green} style={styles.loader} />
       ) : (
@@ -77,24 +86,56 @@ export default function HomeScreen() {
             <View style={styles.emptyWrap}>
               <T variant="kicker" style={styles.emptyKicker}>// no entries</T>
               <T variant="muted" style={styles.emptyHint}>
-                Press + to write your first log.
+                {IS_DESKTOP ? 'Press Cmd+N to write your first log.' : 'Press + to write your first log.'}
               </T>
             </View>
           }
         />
       )}
+    </>
+  );
 
-      {/* ── FAB ──────────────────────────────────────────────────── */}
-      <Pressable
-        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-        onPress={handleNew}
-        accessibilityLabel="New note"
-        testID="fab-new"
-      >
-        <T style={styles.fabLabel}>+</T>
-      </Pressable>
+  const desktopPlaceholder = (
+    <View style={styles.desktopPlaceholder}>
+      <T variant="kicker" style={styles.placeholderLabel}>// SELECT AN ENTRY</T>
+      <T variant="muted" style={styles.placeholderHint}>
+        Choose a note from the sidebar, or press Cmd+N to create one.
+      </T>
+    </View>
+  );
 
-      {/* ── Ask modal ────────────────────────────────────────────── */}
+  return (
+    <Box screen style={styles.root}>
+      {IS_DESKTOP ? (
+        <DesktopPanel sidebar={noteList} main={desktopPlaceholder} />
+      ) : (
+        noteList
+      )}
+
+      {/* FAB (mobile only) */}
+      {!IS_DESKTOP && (
+        <Pressable
+          style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+          onPress={handleNew}
+          accessibilityLabel="New note"
+          testID="fab-new"
+        >
+          <T style={styles.fabLabel}>+</T>
+        </Pressable>
+      )}
+
+      {/* Desktop new note button */}
+      {IS_DESKTOP && (
+        <Pressable
+          style={styles.desktopNew}
+          onPress={handleNew}
+          testID="fab-new"
+          accessibilityLabel="New note"
+        >
+          <T variant="kicker" style={styles.desktopNewLabel}>+ NEW  ⌘N</T>
+        </Pressable>
+      )}
+
       <AskModal visible={askVisible} onClose={() => setAskVisible(false)} />
     </Box>
   );
@@ -145,6 +186,16 @@ const styles = StyleSheet.create({
   emptyKicker: { marginBottom: Spacing.xs },
   emptyHint:   { textAlign: 'center' },
 
+  desktopPlaceholder: {
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            Spacing.sm,
+    padding:        Spacing.xl,
+  },
+  placeholderLabel: { color: Colors.textMuted },
+  placeholderHint:  { color: Colors.textMuted, textAlign: 'center' },
+
   fab: {
     position:        'absolute',
     bottom:          Spacing.xl,
@@ -169,4 +220,16 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     fontWeight: '800',
   },
+
+  desktopNew: {
+    position:        'absolute',
+    bottom:          Spacing.md,
+    left:            Spacing.md,
+    borderWidth:     1,
+    borderColor:     Colors.green,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    zIndex:          10,
+  },
+  desktopNewLabel: { color: Colors.green },
 });

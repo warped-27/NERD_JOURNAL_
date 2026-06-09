@@ -8,8 +8,10 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-text-file",
+    "fs:allow-read-file",
     "fs:allow-write-text-file",
     "fs:allow-exists",
-    "fs:scope-appdata"
+    "fs:scope-app-data",
+    "tray-icon:default"
   ]
 }

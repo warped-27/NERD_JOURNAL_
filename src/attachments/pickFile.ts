@@ -1,62 +1,18 @@
-import { isTauri } from '../platform/detect';
+import * as DocumentPicker from 'expo-document-picker';
 import type { Attachment } from '../notes/Note';
 import { newId } from '../lib/id';
-import * as DocumentPicker from 'expo-document-picker';
+import { isTauri } from '../platform/detect';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-  return btoa(binary);
-}
+export async function pickFile(): Promise<Attachment | null> {
+  if (isTauri()) return pickFileTauri();
 
-function extToMime(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  switch (ext) {
-    case 'pdf':  return 'application/pdf';
-    case 'txt':  return 'text/plain';
-    case 'md':   return 'text/markdown';
-    case 'csv':  return 'text/csv';
-    case 'json': return 'application/json';
-    default:     return 'application/octet-stream';
-  }
-}
+  const result = await DocumentPicker.getDocumentAsync({
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
 
-// ─── Tauri desktop ────────────────────────────────────────────────────────────
-
-async function pickFileTauri(): Promise<Attachment | null> {
-  const { open }   = await import('@tauri-apps/plugin-dialog');
-  const { invoke } = await import('@tauri-apps/api/core');
-
-  const selected = await open({ multiple: false });
-  if (!selected) return null;
-
-  const path = selected as string;
-  const bytes: number[] = await invoke('read_file_bytes', { path });
-  const uint8 = new Uint8Array(bytes);
-
-  if (uint8.length > MAX_SIZE_BYTES) {
-    throw new Error(`File too large (max 5 MB). This file is ~${Math.round(uint8.length / 1024 / 1024)} MB.`);
-  }
-
-  const name = path.split(/[\\/]/).pop() ?? 'file';
-
-  return {
-    id:        newId(),
-    type:      'file',
-    createdAt: Date.now(),
-    data:      uint8ToBase64(uint8),
-    mimeType:  extToMime(name),
-    name,
-    size:      uint8.length,
-  };
-}
-
-// ─── Native (iOS / Android) ───────────────────────────────────────────────────
-
-async function pickFileNative(): Promise<Attachment | null> {
-  const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
   if (result.canceled || !result.assets[0]) return null;
 
   const asset = result.assets[0];
@@ -87,6 +43,57 @@ async function pickFileNative(): Promise<Attachment | null> {
   };
 }
 
+async function pickFileTauri(): Promise<Attachment | null> {
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const { readFile } = await import('@tauri-apps/plugin-fs');
+
+  const selected = await open({ multiple: false, directory: false });
+  if (!selected) return null;
+  const path = Array.isArray(selected) ? selected[0] : selected;
+  if (!path) return null;
+
+  const bytes = await readFile(path);
+  if (bytes.length > MAX_SIZE_BYTES) {
+    throw new Error(`File too large (max 5 MB). This file is ~${Math.round(bytes.length / 1024 / 1024)} MB.`);
+  }
+
+  const base64   = bytesToBase64(bytes);
+  const fileName = path.split(/[/\\]/).pop() ?? 'file';
+  const mimeType = inferMimeType(fileName);
+
+  return {
+    id:        newId(),
+    type:      'file',
+    createdAt: Date.now(),
+    data:      base64,
+    mimeType,
+    name:      fileName,
+    size:      bytes.length,
+  };
+}
+
+function inferMimeType(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    pdf:  'application/pdf',
+    txt:  'text/plain',
+    md:   'text/markdown',
+    csv:  'text/csv',
+    json: 'application/json',
+    zip:  'application/zip',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
+  return map[ext] ?? 'application/octet-stream';
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len  = bytes.length;
+  for (let i = 0; i < len; i++) binary += String.fromCharCode(bytes[i]!);
+  return btoa(binary);
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -97,11 +104,4 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
-}
-
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-export async function pickFile(): Promise<Attachment | null> {
-  if (isTauri()) return pickFileTauri();
-  return pickFileNative();
 }
