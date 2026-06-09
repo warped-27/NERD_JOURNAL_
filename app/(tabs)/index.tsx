@@ -7,6 +7,7 @@ import { useRouter, Link } from 'expo-router';
 import { useNotes }        from '../../src/notes/NotesContext';
 import { NoteCard }        from '../../src/components/NoteCard';
 import { NerdLogo }        from '../../src/components/NerdLogo';
+import { StatsStrip }      from '../../src/components/StatsStrip';
 import { Box }             from '../../src/design/components/Box';
 import { T }               from '../../src/design/components/T';
 import { Colors, Spacing, Typography } from '../../src/design/tokens';
@@ -80,6 +81,9 @@ export default function HomeScreen() {
 
       {/* ── Rule ─────────────────────────────────────────────────── */}
       <View style={styles.rule} />
+
+      {/* ── Stats + Daily prompt ─────────────────────────────────── */}
+      {!isLoading && <StatsStrip notes={notes} />}
 
       {/* ── List ─────────────────────────────────────────────────── */}
       {isLoading ? (
