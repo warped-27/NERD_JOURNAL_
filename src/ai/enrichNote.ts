@@ -74,7 +74,7 @@ export async function enrichNote(
         .slice(0, 6)
         .map((t) => String(t).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24))
         .filter(Boolean),
-      summary: String(p['summary']).slice(0, 600),
+      summary: String(p['summary']).replace(/\n/g, ' ').trim().slice(0, 600),
       palette: (p['palette'] as unknown[])
         .slice(0, 3)
         .map((c) => String(c).toLowerCase())

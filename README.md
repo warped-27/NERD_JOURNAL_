@@ -5,7 +5,7 @@ Nerd Journal is a personal journaling and Personal Knowledge Management (PKM) ap
 The application is strictly Serverless, Client-Centric, and Zero-Knowledge. There is no central database: your thoughts are yours, your keys are yours, your cloud is yours.
 
 🔒 The Three Core Pillars
-Zero-Knowledge Encryption (Client-Side): Data never leaves the device in plain text. Every note, text entry, or voice recording is encrypted locally in AES-GCM using a key derived (PBKDF2) from a complex Master Password.
+Zero-Knowledge Encryption (Client-Side): Data never leaves the device in plain text. Every note, text entry, or voice recording is encrypted locally in AES-GCM using a key derived (Argon2id) from a complex Master Password.
 
 BYOK (Bring Your Own Key): No subscriptions, no proxy servers. The app interfaces directly with Google Gemini APIs using the personal API key provided by the user.
 

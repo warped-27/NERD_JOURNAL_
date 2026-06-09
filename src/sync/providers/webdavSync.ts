@@ -1,6 +1,30 @@
 import type { SyncBundle } from '../SyncBundle';
 import { serializeBundle, parseBundle } from '../SyncBundle';
 import { assertSafeUrl } from '../../lib/urlValidation';
+import { logger } from '../../lib/logger';
+
+const TIMEOUT_MS = 30_000;
+
+// Wrapper that adds a 30 s timeout and refuses server-side redirects.
+// Redirects are refused because they could send Basic Auth credentials to an
+// attacker-controlled URL (the Authorization header follows the redirect).
+async function wfetch(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { ...options, redirect: 'manual', signal: controller.signal });
+    // Reject actual redirects (301/302/303/307/308) — following them would send
+    // Basic Auth credentials to an attacker-controlled destination.
+    // 304 (Not Modified) is NOT a redirect and must pass through.
+    const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
+    if (res.type === 'opaqueredirect' || REDIRECT_CODES.has(res.status)) {
+      throw new Error('WebDAV server issued a redirect — check your URL configuration');
+    }
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export interface WebDavConfig {
   url:      string;   // base URL, e.g. https://cloud.example.com/dav/files/user
@@ -34,7 +58,7 @@ function basicAuth(username: string, password: string): string {
 
 export async function webdavPush(config: WebDavConfig, bundle: SyncBundle): Promise<void> {
   assertSafeUrl(config.url);
-  const res = await fetch(bundleUrl(config), {
+  const res = await wfetch(bundleUrl(config), {
     method:  'PUT',
     headers: {
       'Content-Type':  'application/json',
@@ -61,7 +85,7 @@ export async function webdavPull(
   };
   if (ifNoneMatchEtag) headers['If-None-Match'] = ifNoneMatchEtag;
 
-  const res = await fetch(bundleUrl(config), { method: 'GET', headers });
+  const res = await wfetch(bundleUrl(config), { method: 'GET', headers });
 
   if (res.status === 304) return null;  // not modified — caller can skip merge
   if (res.status === 404) return null;  // no bundle on server yet
@@ -84,13 +108,13 @@ export async function webdavPushBlob(
   assertSafeUrl(config.url);
   const auth = basicAuth(config.username, config.password);
 
-  // Ensure the blobs directory exists — ignore failures (dir may already exist)
-  await fetch(blobDirUrl(config), {
+  // Ensure the blobs directory exists — best-effort; 405 expected if already present
+  await wfetch(blobDirUrl(config), {
     method:  'MKCOL',
     headers: { 'Authorization': auth },
-  }).catch(() => {});
+  }).catch((e) => logger.debug('WebDAV MKCOL best-effort failed', { error: String(e) }));
 
-  const res = await fetch(blobUrl(config, blobId), {
+  const res = await wfetch(blobUrl(config, blobId), {
     method:  'PUT',
     headers: { 'Content-Type': 'application/octet-stream', 'Authorization': auth },
     body:    envelope,
@@ -107,7 +131,7 @@ export async function webdavPullBlob(
   blobId: string,
 ): Promise<string | null> {
   assertSafeUrl(config.url);
-  const res = await fetch(blobUrl(config, blobId), {
+  const res = await wfetch(blobUrl(config, blobId), {
     method:  'GET',
     headers: { 'Authorization': basicAuth(config.username, config.password) },
   });
@@ -119,7 +143,7 @@ export async function webdavPullBlob(
 export async function testWebDavConnection(config: WebDavConfig): Promise<void> {
   assertSafeUrl(config.url);
   // PROPFIND on the root to verify credentials and reachability
-  const res = await fetch(config.url.replace(/\/+$/, ''), {
+  const res = await wfetch(config.url.replace(/\/+$/, ''), {
     method:  'PROPFIND',
     headers: {
       'Authorization': basicAuth(config.username, config.password),

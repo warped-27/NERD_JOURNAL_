@@ -142,4 +142,12 @@ describe('getTotalWords', () => {
     const notes = [makeNote({ createdAt: daysAgo(0), title: '', content: '' })];
     expect(getTotalWords(notes)).toBe(0);
   });
+
+  it('returns 0 for notes with only whitespace in both title and content', () => {
+    const notes = [
+      makeNote({ id: 'a', createdAt: daysAgo(0), title: '   ', content: '   ' }),
+      makeNote({ id: 'b', createdAt: daysAgo(1), title: '\n\t', content: '\t\n' }),
+    ];
+    expect(getTotalWords(notes)).toBe(0);
+  });
 });

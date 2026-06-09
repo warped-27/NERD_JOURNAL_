@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Audio } from 'expo-av';
 import type { Attachment } from '../notes/Note';
@@ -25,6 +25,13 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
   const [audioUri,    setAudioUri]    = useState<string | null>(null);
   const [error,       setError]       = useState('');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+    };
+  }, []);
 
   const startRecording = useCallback(async () => {
     setError('');

@@ -15,6 +15,10 @@ const INJECTION_PATTERNS = [
   /prompt\s+injection/gi,
 ];
 
+// Unicode non-ASCII whitespace: U+00A0 (NBSP), U+2000-U+200A (typographic spaces),
+// U+202F (narrow NBSP), U+205F (math space), U+3000 (ideographic space).
+const UNICODE_SPACES = /[  -   　]/g;
+
 export function sanitizeInput(text: string): string {
   if (!text) return '';
 
@@ -32,6 +36,10 @@ export function sanitizeInput(text: string): string {
   // Strip control chars except \n (0x0A) and \t (0x09)
   // eslint-disable-next-line no-control-regex
   s = s.replace(/[\x01-\x08\x0B-\x1F\x7F]/g, '');
+
+  // Normalize non-ASCII whitespace to regular space so injection patterns
+  // cannot be bypassed using Unicode lookalikes (no-break space, em/en spaces, etc.).
+  s = s.replace(UNICODE_SPACES, ' ');
 
   // Remove injection patterns
   for (const pattern of INJECTION_PATTERNS) {

@@ -62,4 +62,28 @@ describe('rankByRelevance', () => {
     expect(scores[0]).toBeGreaterThan(scores[1]!);
     expect(scores[0]).toBeCloseTo(1, 1);
   });
+
+  it('returns all-zero scores when query is all stop words', () => {
+    const scores = rankByRelevance('the a an', ['foo bar', 'baz qux']);
+    expect(scores.every((s) => s === 0)).toBe(true);
+  });
+
+  it('returns all-zero scores when all docs are empty strings', () => {
+    const scores = rankByRelevance('something', ['', '', '']);
+    expect(scores.every((s) => s === 0)).toBe(true);
+  });
+
+  it('never produces NaN or Infinity', () => {
+    const cases = [
+      { q: '', docs: ['foo'] },
+      { q: 'the', docs: [''] },
+      { q: 'x'.repeat(500), docs: ['y'.repeat(500), ''] },
+    ];
+    for (const { q, docs } of cases) {
+      const scores = rankByRelevance(q, docs);
+      for (const s of scores) {
+        expect(Number.isFinite(s)).toBe(true);
+      }
+    }
+  });
 });

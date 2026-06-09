@@ -47,15 +47,20 @@ export interface MergeResult {
   skipped:  number;
 }
 
+const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
+
 function isValidRow(r: unknown): r is NoteRow {
   if (typeof r !== 'object' || r === null) return false;
   const o = r as Record<string, unknown>;
-  return (
-    typeof o['id']         === 'string' && (o['id'] as string).length > 0 &&
-    typeof o['envelope']   === 'string' &&
-    typeof o['updated_at'] === 'number' &&
-    typeof o['created_at'] === 'number'
-  );
+  if (typeof o['id'] !== 'string' || (o['id'] as string).length === 0) return false;
+  if (typeof o['updated_at'] !== 'number') return false;
+  if (typeof o['created_at'] !== 'number') return false;
+  const env = o['envelope'];
+  if (typeof env !== 'string') return false;
+  // Envelope must be non-empty, within sane size bounds, and valid base64url
+  if (env.length === 0 || env.length > 10_000_000) return false;
+  if (!BASE64URL_RE.test(env)) return false;
+  return true;
 }
 
 export async function mergeBundle(db: Database, bundle: SyncBundle): Promise<MergeResult> {

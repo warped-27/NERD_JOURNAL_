@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Modal, ScrollView, StyleSheet,
   Pressable, TextInput,
@@ -27,6 +27,15 @@ export function AskModal({ visible, onClose }: Props) {
   const ai         = useAi();
   const { notes }  = useNotes();
   const router     = useRouter();
+
+  useEffect(() => {
+    if (visible) {
+      setQuestion('');
+      setAnswer('');
+      setSources([]);
+      setError('');
+    }
+  }, [visible]);
 
   async function handleAsk() {
     const q = question.trim();
