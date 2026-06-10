@@ -15,7 +15,7 @@ There is no central database, no subscription, no proxy server. Your notes are e
 |---|---|
 | **Zero-Knowledge Encryption** | AES-256-GCM with a key derived via Argon2id from your master password. Notes never leave the device in plain text. |
 | **BYOK** (Bring Your Own Key) | Direct API calls to the AI provider of your choice — no middleman, no quota sharing. |
-| **BYO-Cloud** | Sync only to the server you control: WebDAV, Nextcloud, ownCloud, or an encrypted file you move manually. |
+| **BYO-Cloud** | Sync only to the server you control: WebDAV, Nextcloud, ownCloud, S3-compatible storage (AWS S3, Cloudflare R2, Backblaze B2, MinIO), or an encrypted file you move manually. |
 
 ---
 
@@ -34,6 +34,7 @@ There is no central database, no subscription, no proxy server. Your notes are e
 - Related notes panel using TF-IDF cosine similarity (no embeddings, no cloud)
 - Writing streak tracker, word count, sparkline activity chart
 - Daily writing prompts
+- Markdown export with YAML frontmatter (via system share sheet)
 
 ### AI — Provider Cascade
 
@@ -77,20 +78,32 @@ When the active cascade includes a cloud provider, a **mandatory consent dialog*
 - **Desktop / Web**: unavailable — shown with a clear "macOS / iOS / Android only" notice in Settings
 
 ### Second Brain (RAG)
-Ask questions across your entire note collection. TF-IDF retrieval selects the most relevant notes, builds a context window, and queries the active AI provider — no embeddings, no third-party vector store.
+Ask questions across your entire note collection via the dedicated **Second Brain** screen. TF-IDF retrieval selects the most relevant notes, builds a context window, and queries the active AI provider — no embeddings, no third-party vector store. Answers include collapsible source citations.
+
+### Sync
+
+| Method | Details |
+|---|---|
+| **WebDAV / Nextcloud / ownCloud** | Push/pull of encrypted bundle, ETag-based conditional sync (skips download if unchanged) |
+| **S3-compatible storage** | AWS S3, Cloudflare R2, Backblaze B2, MinIO — SigV4 signed requests, ETag conditional GET |
+| **File backup** | Export/import encrypted `.njvault` bundle manually |
+
+All sync methods:
+- Transfer only AES-256-GCM encrypted envelopes — the server never sees plaintext
+- Detect cross-vault bundles (salt mismatch) and reject them before import
+- Wrap all imports in a SQLite transaction — a crash mid-import leaves the DB clean
+- Last-writer-wins merge with per-note conflict detection and user-facing resolution UI
+- Delta push: skips upload if nothing changed since last sync
 
 ### Security
 - Vault unlock: master password (always) + optional Face ID / Fingerprint (iOS / Android)
-- Biometric key stored in device Secure Enclave — never leaves hardware
+- Biometric key stored in device Secure Enclave — never leaves hardware; requires passcode to be set
 - OS keychain on desktop (Rust `keyring` crate via Tauri IPC)
-- Tauri IPC allowlist: JS can only read/write explicitly named keychain keys
+- Derived key zeroed in memory immediately on lock or on any exception path
+- `toBase64url` uses chunk-based encoding — no stack overflow on large notes or attachments
+- Sync credentials (`nj_sync_config`) stored in sessionStorage on web — not persisted across browser restarts
 - Content Security Policy locks outbound connections to known AI/sync endpoints
-- Sync bundle import wrapped in SQLite transaction — partial import on crash leaves DB clean
-
-### Sync
-- **WebDAV / Nextcloud / ownCloud**: push/pull of encrypted bundle, ETag-based conditional sync
-- **File backup**: export/import encrypted `.njvault` bundle manually
-- Delta sync: skips upload if nothing changed since last sync
+- All S3 and WebDAV fetch calls use `redirect: 'manual'` to prevent credential forwarding
 
 ---
 
@@ -182,7 +195,7 @@ npx expo run:ios
 | Similarity search | TF-IDF cosine similarity (no external service) |
 | State | Zustand + React Context |
 | Styling | React Native StyleSheet — JetBrains Mono, design tokens |
-| Tests | Jest + jest-expo (367 tests, 50 suites) |
+| Tests | Jest + jest-expo (371 tests, 50 suites) |
 | Type checking | TypeScript 6 (strict) |
 
 ---
@@ -192,6 +205,7 @@ npx expo run:ios
 ```
 app/                  Expo Router screens
   (tabs)/index.tsx    Home — note list
+  brain.tsx           Second Brain — RAG chat over notes
   note/[id].tsx       Note editor
   settings.tsx        Settings — AI, sync, security
 
@@ -203,7 +217,8 @@ src/
     onDevice/         llama.rn context + model manager (native only)
   crypto/             Vault (AES-GCM + Argon2id), biometrics, keychain
   notes/              Note model, store, search, related notes
-  sync/               WebDAV sync, file export/import, encrypted bundle
+  sync/               WebDAV + S3 sync, file export/import, encrypted bundle
+    providers/        webdavSync · s3Sync
   stats/              Streak, word count, sparkline, daily prompts
   design/             Design tokens, Box, T, Btn, Input components
   platform/           isTauri() / isNative() detection
@@ -220,8 +235,9 @@ src-tauri/            Rust — OS keychain IPC, system tray, file pickers
 npm run web           # Expo web dev server
 npm run dev:tauri     # Tauri desktop dev mode
 npm run build:tauri   # Tauri production build
-npm test              # Jest (367 tests)
+npm test              # Jest (371 tests, 50 suites)
 npm run typecheck     # tsc --noEmit
+npm run lint          # ESLint
 ```
 
 ---
