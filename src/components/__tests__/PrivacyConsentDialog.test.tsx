@@ -18,7 +18,7 @@ describe('PrivacyConsentDialog', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <PrivacyConsentDialog visible onAccept={jest.fn()} onDecline={jest.fn()} />,
+        <PrivacyConsentDialog visible providerName="Google Gemini" onAccept={jest.fn()} onDecline={jest.fn()} />,
       );
     });
     expect(renderer.toJSON()).not.toBeNull();
@@ -29,7 +29,7 @@ describe('PrivacyConsentDialog', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <PrivacyConsentDialog visible onAccept={onAccept} onDecline={jest.fn()} />,
+        <PrivacyConsentDialog visible providerName="Google Gemini" onAccept={onAccept} onDecline={jest.fn()} />,
       );
     });
     const btn = renderer.root.findByProps({ testID: 'consent-accept' });
@@ -42,7 +42,7 @@ describe('PrivacyConsentDialog', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <PrivacyConsentDialog visible onAccept={jest.fn()} onDecline={onDecline} />,
+        <PrivacyConsentDialog visible providerName="Google Gemini" onAccept={jest.fn()} onDecline={onDecline} />,
       );
     });
     const btn = renderer.root.findByProps({ testID: 'consent-decline' });

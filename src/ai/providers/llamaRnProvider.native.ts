@@ -26,7 +26,9 @@ export async function initLlamaRnProvider(
 
   const ctx = _ctx;
   return {
-    id: 'on-device',
+    id:           'on-device',
+    displayName:  'On-Device (llama.rn)',
+    privacyLevel: 'on-device',
     async complete(prompt: string): Promise<string> {
       const result = await ctx.completion({
         messages:    [{ role: 'user', content: prompt }],

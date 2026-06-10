@@ -32,6 +32,9 @@ function makeAiCtx(overrides: Partial<ReturnType<typeof useAi>> = {}): ReturnTyp
     giveConsent:        jest.fn(),
     declineConsent:     jest.fn(),
     pendingConsent:     false,
+    cloudProviderName:  'Google Gemini',
+    hasCloudProvider:   false,
+    canAutoEnrich:      true,
     requestWithConsent: jest.fn(),
     doComplete:         jest.fn(),
     isLoading:          false,
@@ -53,8 +56,8 @@ function makeAiCtx(overrides: Partial<ReturnType<typeof useAi>> = {}): ReturnTyp
 describe('AiAssistant', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('shows no-key message when apiKey is null', () => {
-    mockUseAi.mockReturnValue(makeAiCtx({ apiKey: null }));
+  it('shows no-provider message when hasAnyProvider is false', () => {
+    mockUseAi.mockReturnValue(makeAiCtx({ apiKey: null, hasAnyProvider: false }));
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<AiAssistant noteContent="note" />);

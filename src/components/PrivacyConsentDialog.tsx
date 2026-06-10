@@ -5,12 +5,13 @@ import { Btn } from '../design/components/Btn';
 import { Colors, Spacing } from '../design/tokens';
 
 interface Props {
-  visible: boolean;
-  onAccept: () => void;
-  onDecline: () => void;
+  visible:      boolean;
+  providerName: string;
+  onAccept:     () => void;
+  onDecline:    () => void;
 }
 
-export function PrivacyConsentDialog({ visible, onAccept, onDecline }: Props) {
+export function PrivacyConsentDialog({ visible, providerName, onAccept, onDecline }: Props) {
   return (
     <Modal
       visible={visible}
@@ -25,8 +26,9 @@ export function PrivacyConsentDialog({ visible, onAccept, onDecline }: Props) {
 
           <ScrollView style={styles.body} testID="consent-body">
             <T variant="body">
-              To process your request, the selected note content will be sent to{' '}
-              <T variant="mono">Google Gemini API</T> (cloud service).
+              To process your request, the note content will be{' '}
+              <T variant="mono">decrypted in memory</T> and sent to{' '}
+              <T variant="mono">{providerName}</T> via an encrypted HTTPS connection.
             </T>
 
             <T variant="body" style={styles.para}>
@@ -34,21 +36,24 @@ export function PrivacyConsentDialog({ visible, onAccept, onDecline }: Props) {
             </T>
 
             <T variant="label" style={styles.bullet}>
-              {'• '}Your note text will leave this device and be processed by Google.
+              {'• '}Your note text leaves this device and is processed by {providerName}.
             </T>
             <T variant="label" style={styles.bullet}>
-              {'• '}Google may log requests per their terms of service.
+              {'• '}{providerName} may log requests per their terms of service.
             </T>
             <T variant="label" style={styles.bullet}>
-              {'• '}Avoid sending highly sensitive personal data (passwords, financial info).
+              {'• '}Avoid sending highly sensitive data (passwords, financial info).
             </T>
             <T variant="label" style={styles.bullet}>
-              {'• '}Your Gemini API key is stored locally on this device only.
+              {'• '}Your API key is stored only on this device.
+            </T>
+            <T variant="label" style={styles.bullet}>
+              {'• '}If a local provider fails, requests may fall back to this cloud service.
             </T>
 
             <T variant="muted" style={styles.para}>
-              This consent is stored locally and will not be asked again.
-              You can revoke it by clearing your API key in Settings.
+              This consent covers all configured cloud providers and will not be asked again.
+              You can revoke it by removing all cloud API keys in Settings.
             </T>
           </ScrollView>
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { isNativePlatform } from '../src/platform/detect';
 import { useVault } from '../src/crypto/VaultContext';
 import { useAi, GEMINI_MODELS } from '../src/ai/AiContext';
 import { useOnDevice } from '../src/ai/onDevice/OnDeviceContext';
@@ -315,10 +316,10 @@ export default function SettingsScreen() {
           </T>
         </Pressable>
 
-        {ai.autoEnrich && ai.apiKey && onDevice.status !== 'loaded' && (
+        {ai.autoEnrich && ai.hasCloudProvider && onDevice.status !== 'loaded' && (
           <T variant="error" style={styles.privacyWarning} testID="autoenrich-warning">
-            Note content is sent to Gemini automatically on every save.
-            Load the on-device model to keep notes local.
+            Note content is sent to {ai.cloudProviderName ?? 'cloud AI'} automatically on
+            every save. Load the on-device model to keep notes local.
           </T>
         )}
 
@@ -443,12 +444,15 @@ export default function SettingsScreen() {
         <T variant="heading" style={[styles.section, styles.syncHeading]}>LOCAL AI</T>
         <T variant="muted" style={styles.hint}>
           Run a local model on your machine or LAN. Local providers are tried first
-          before falling back to Gemini. Your notes never leave the device.
+          before any cloud fallback. Your notes never leave the device.
         </T>
 
         <T variant="label" style={styles.label}>OLLAMA (LAN / TAILSCALE)</T>
         <T variant="muted" style={styles.hint}>
           Install Ollama, pull a model (e.g. llama3.2:3b), then enable here.
+          {isNativePlatform()
+            ? ' On mobile, use your computer\'s LAN IP (e.g. http://192.168.1.x:11434) — localhost refers to the phone itself.'
+            : ''}
         </T>
         <Pressable
           style={[styles.toggleRow, ollamaEnabled && styles.toggleRowActive]}
@@ -501,6 +505,12 @@ export default function SettingsScreen() {
 
         {/* ─── MLX ─── */}
         <T variant="label" style={[styles.label, styles.modelTitle]}>MLX (APPLE SILICON)</T>
+        {isNativePlatform() ? (
+          <T variant="muted" style={styles.hint}>
+            MLX runs on macOS with Apple Silicon — not available on iOS or Android.
+          </T>
+        ) : (
+          <>
         <T variant="muted" style={styles.hint}>
           Run mlx-lm on macOS with Apple Silicon for fast on-device inference.
           Start the server: mlx_lm.server --model &lt;model&gt; --port 8080
@@ -553,6 +563,8 @@ export default function SettingsScreen() {
             {mlxStatus}
           </T>
         ) : null}
+          </>
+        )}
 
         {/* ─── CUSTOM PROVIDER ─── */}
         <T variant="label" style={[styles.label, styles.modelTitle]}>CUSTOM (LITELLM / OPENAI-COMPATIBLE)</T>
@@ -717,8 +729,9 @@ export default function SettingsScreen() {
         {/* ─── WHISPER ─── */}
         <T variant="heading" style={[styles.section, styles.syncHeading]}>LOCAL TRANSCRIPTION</T>
         <T variant="muted" style={styles.hint}>
-          Whisper Small runs entirely on your device — audio never leaves.
-          After download, transcription works offline.
+          Whisper Small runs entirely on your device — audio never leaves and
+          transcription works offline. The 244 MB model is downloaded once from
+          HuggingFace (ggerganov/whisper.cpp) and stored locally.
         </T>
 
         {whisper.status === 'unavailable' ? (

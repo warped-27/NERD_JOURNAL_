@@ -94,10 +94,16 @@ interface AiContextValue {
   model:    string;
   setModel: (model: string)    => Promise<void>;
   // Consent
-  hasConsented:   boolean;
-  giveConsent:    ()    => Promise<void>;
-  declineConsent: ()    => void;
-  pendingConsent: boolean;
+  hasConsented:      boolean;
+  giveConsent:       ()    => Promise<void>;
+  declineConsent:    ()    => void;
+  pendingConsent:    boolean;
+  /** Name of the first cloud provider in the cascade (e.g. "Google Gemini"), or null if none. */
+  cloudProviderName: string | null;
+  /** True when providers include at least one cloud endpoint. */
+  hasCloudProvider:  boolean;
+  /** True when auto-enrich can run: either consented or all providers are local/on-device. */
+  canAutoEnrich:     boolean;
   // Interaction
   requestWithConsent: (noteContent: string, instruction: string) => Promise<Result<string, Error>>;
   doComplete: (prompt: string) => Promise<Result<string, Error>>;
@@ -146,24 +152,27 @@ export function AiProvider({ children }: { children: ReactNode }) {
     }
     if (ollamaConfig.enabled && ollamaConfig.baseUrl && ollamaConfig.model) {
       list.push(makeOpenAiCompatProvider({
-        id:      'ollama',
-        baseUrl: ollamaConfig.baseUrl,
-        model:   ollamaConfig.model,
+        id:          'ollama',
+        displayName: 'Ollama (local)',
+        baseUrl:     ollamaConfig.baseUrl,
+        model:       ollamaConfig.model,
       }));
     }
     if (mlxConfig.enabled && mlxConfig.baseUrl && mlxConfig.model) {
       list.push(makeOpenAiCompatProvider({
-        id:      'mlx',
-        baseUrl: mlxConfig.baseUrl,
-        model:   mlxConfig.model,
+        id:          'mlx',
+        displayName: 'MLX (local)',
+        baseUrl:     mlxConfig.baseUrl,
+        model:       mlxConfig.model,
       }));
     }
     if (customConfig.enabled && customConfig.baseUrl && customConfig.model) {
       list.push(makeOpenAiCompatProvider({
-        id:      'custom',
-        baseUrl: customConfig.baseUrl,
-        model:   customConfig.model,
-        apiKey:  customConfig.apiKey,
+        id:          'custom',
+        displayName: customConfig.name || 'Custom',
+        baseUrl:     customConfig.baseUrl,
+        model:       customConfig.model,
+        apiKey:      customConfig.apiKey,
       }));
     }
     if (claudeConfig.enabled && claudeConfig.apiKey && claudeConfig.model) {
@@ -174,6 +183,15 @@ export function AiProvider({ children }: { children: ReactNode }) {
     }
     return list;
   }, [onDevice.provider, ollamaConfig, mlxConfig, customConfig, claudeConfig, apiKey, model]);
+
+  // ── Cloud-provider metadata (drives consent dialog) ───────────────────────
+  const cloudProviders     = useMemo(() => providers.filter((p) => p.privacyLevel === 'cloud'), [providers]);
+  const cloudProviderName  = useMemo(() => cloudProviders[0]?.displayName ?? null, [cloudProviders]);
+  const hasCloudProvider   = cloudProviders.length > 0;
+  const canAutoEnrich      = useMemo(
+    () => hasConsented || !hasCloudProvider,
+    [hasConsented, hasCloudProvider],
+  );
 
   // ── Load persisted settings ────────────────────────────────────────────────
   const loadSettings = useCallback(async () => {
@@ -287,7 +305,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
         return Promise.resolve(err(new Error('No AI providers configured')));
       }
 
-      if (!hasConsented) {
+      // Consent required only when the cascade includes at least one cloud provider
+      if (cloudProviders.length > 0 && !hasConsented) {
         return new Promise((resolve) => {
           pendingCallRef.current = { noteContent, instruction, resolve };
           setPendingConsent(true);
@@ -299,13 +318,18 @@ export function AiProvider({ children }: { children: ReactNode }) {
         setIsLoading(false),
       );
     },
-    [providers, hasConsented],
+    [providers, cloudProviders, hasConsented],
   );
 
   // ── Direct cascade for background tasks (enrichment) ─────────────────────
+  // If no consent yet, only run through local/on-device providers so note
+  // content never reaches a cloud endpoint in the background.
   const doComplete = useCallback(
-    (prompt: string) => cascadeComplete(providers, prompt),
-    [providers],
+    (prompt: string) => {
+      const safe = hasConsented ? providers : providers.filter((p) => p.privacyLevel !== 'cloud');
+      return cascadeComplete(safe, prompt);
+    },
+    [providers, hasConsented],
   );
 
   return (
@@ -320,6 +344,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
         giveConsent,
         declineConsent,
         pendingConsent,
+        cloudProviderName,
+        hasCloudProvider,
+        canAutoEnrich,
         requestWithConsent,
         doComplete,
         isLoading,

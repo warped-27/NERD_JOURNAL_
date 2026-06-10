@@ -29,11 +29,11 @@ export function AiAssistant({ noteContent }: Props) {
     }
   }
 
-  if (!ai.apiKey) {
+  if (!ai.hasAnyProvider) {
     return (
       <View style={styles.root} testID="ai-no-key">
-        <T variant="muted">No Gemini API key configured.</T>
-        <T variant="muted">Add your key in Settings to enable AI assistance.</T>
+        <T variant="muted">No AI provider configured.</T>
+        <T variant="muted">Add an API key or enable a local provider in Settings.</T>
       </View>
     );
   }
@@ -42,6 +42,7 @@ export function AiAssistant({ noteContent }: Props) {
     <View style={styles.root} testID="ai-assistant">
       <PrivacyConsentDialog
         visible={ai.pendingConsent}
+        providerName={ai.cloudProviderName ?? 'Cloud AI'}
         onAccept={ai.giveConsent}
         onDecline={ai.declineConsent}
       />

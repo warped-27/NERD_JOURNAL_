@@ -25,7 +25,9 @@ interface AnthropicResponse {
 
 export function makeClaudeProvider(config: ClaudeConfig): AiProvider {
   return {
-    id: 'claude',
+    id:           'claude',
+    displayName:  'Anthropic Claude',
+    privacyLevel: 'cloud',
     async complete(prompt: string): Promise<string> {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

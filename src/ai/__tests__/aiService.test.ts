@@ -5,7 +5,9 @@ import { ok, err } from '../../lib/result';
 
 function makeProvider(response: string | Error): AiProvider {
   return {
-    id: 'test',
+    id:           'test',
+    displayName:  'Test',
+    privacyLevel: 'cloud',
     complete: jest.fn(async () => {
       if (response instanceof Error) throw response;
       return response;

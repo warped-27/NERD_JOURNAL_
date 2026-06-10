@@ -4,6 +4,8 @@ import type { AiProvider } from '../providers/types';
 function makeProvider(id: string, response: string | Error): AiProvider {
   return {
     id,
+    displayName:  id,
+    privacyLevel: 'cloud',
     complete: jest.fn(async () => {
       if (response instanceof Error) throw response;
       return response;

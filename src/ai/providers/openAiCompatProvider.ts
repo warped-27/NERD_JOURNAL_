@@ -6,6 +6,8 @@ export interface OpenAiCompatConfig {
   baseUrl: string;
   model: string;
   apiKey?: string;
+  /** Human-readable name for the privacy consent dialog */
+  displayName?: string;
 }
 
 interface OaiResponse {
@@ -19,8 +21,11 @@ const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
 export function makeOpenAiCompatProvider(config: OpenAiCompatConfig): AiProvider {
   assertSafeUrl(config.baseUrl);
   const base = config.baseUrl.replace(/\/+$/, '');
+  const privacyLevel = config.baseUrl.startsWith('https://') ? 'cloud' : 'local';
   return {
-    id: config.id,
+    id:           config.id,
+    displayName:  config.displayName ?? config.id,
+    privacyLevel,
     async complete(prompt: string): Promise<string> {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

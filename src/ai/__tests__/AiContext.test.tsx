@@ -141,4 +141,26 @@ describe('AiContext', () => {
     expect(result?.ok).toBe(true);
     if (result?.ok) expect(result.value).toBe('AI result');
   });
+
+  it('exposes cloudProviderName and hasCloudProvider when Gemini key is set', async () => {
+    mockSecretGet.mockImplementation(async (key) => {
+      if (key === 'nj_gemini_apikey') return 'my-key';
+      return null;
+    });
+    let ctx!: ReturnType<typeof useAi>;
+    await act(async () => {
+      renderWithProvider((v) => (ctx = v));
+    });
+    expect(ctx.hasCloudProvider).toBe(true);
+    expect(ctx.cloudProviderName).toBe('Google Gemini');
+  });
+
+  it('canAutoEnrich is true when no cloud providers are configured', async () => {
+    let ctx!: ReturnType<typeof useAi>;
+    await act(async () => {
+      renderWithProvider((v) => (ctx = v));
+    });
+    // No providers at all — no cloud, no consent needed for enrichment
+    expect(ctx.canAutoEnrich).toBe(true);
+  });
 });
