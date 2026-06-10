@@ -101,10 +101,14 @@ export async function s3Push(config: S3Config, bundle: SyncBundle): Promise<void
   const body    = serializeBundle(bundle);
   const headers = await buildAuthHeaders(config, 'PUT', objectPath(config), body, 'application/json');
   const res = await fetch(objectUrl(config), {
-    method:  'PUT',
-    headers: { ...headers, 'Content-Type': 'application/json' },
+    method:   'PUT',
+    redirect: 'manual',
+    headers:  { ...headers, 'Content-Type': 'application/json' },
     body,
   });
+  if (res.type === 'opaqueredirect' || (res.status >= 301 && res.status <= 308)) {
+    throw new Error('S3 PUT: unexpected redirect — check endpoint configuration');
+  }
   if (!res.ok) throw new Error(`S3 PUT failed: ${res.status} ${res.statusText}`);
 }
 
@@ -120,9 +124,13 @@ export async function s3Pull(config: S3Config, lastEtag?: string | null): Promis
 
   const authHdrs = await buildAuthHeaders(config, 'GET', objectPath(config), '');
   const res = await fetch(objectUrl(config), {
-    method:  'GET',
-    headers: { ...authHdrs, ...extraHdrs },
+    method:   'GET',
+    redirect: 'manual',
+    headers:  { ...authHdrs, ...extraHdrs },
   });
+  if (res.type === 'opaqueredirect' || (res.status >= 301 && res.status <= 308)) {
+    throw new Error('S3 GET: unexpected redirect — check endpoint configuration');
+  }
   if (res.status === 304) return null;
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`S3 GET failed: ${res.status} ${res.statusText}`);
@@ -136,7 +144,10 @@ export async function testS3Connection(config: S3Config): Promise<void> {
   assertSafeUrl(config.endpoint);
   const bucketUrl  = `${config.endpoint.replace(/\/+$/, '')}/${config.bucket}`;
   const bucketPath = `/${config.bucket}`;
-  const headers    = await buildAuthHeaders(config, 'HEAD', bucketPath, '');
-  const res = await fetch(bucketUrl, { method: 'HEAD', headers });
+  const headers = await buildAuthHeaders(config, 'HEAD', bucketPath, '');
+  const res = await fetch(bucketUrl, { method: 'HEAD', redirect: 'manual', headers });
+  if (res.type === 'opaqueredirect' || (res.status >= 301 && res.status <= 308)) {
+    throw new Error('S3 HEAD: unexpected redirect — check endpoint configuration');
+  }
   if (!res.ok) throw new Error(`S3 connection failed: ${res.status} ${res.statusText}`);
 }

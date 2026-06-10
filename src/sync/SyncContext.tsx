@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
   type ReactNode,
 } from 'react';
 import { secretGet, secretSet } from '../crypto/secureSecrets';
@@ -59,6 +60,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [showOnboarding,   setShowOnboarding]   = useState(false);
   const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
 
+  // Refs for the current meta values so persistence callbacks don't close over stale state.
+  const lastSyncAtRef = useRef<number | null>(null);
+  const lastEtagRef   = useRef<string | null>(null);
+
   useEffect(() => {
     secretGet(SYNC_CFG_KEY).then((raw) => {
       if (!raw) return;
@@ -69,8 +74,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (!raw) return;
       try {
         const meta = JSON.parse(raw) as SyncMeta;
-        if (meta.lastSyncAt) setLastSyncAtState(meta.lastSyncAt);
-        if (meta.lastEtag)   setLastEtagState(meta.lastEtag);
+        if (meta.lastSyncAt != null) { lastSyncAtRef.current = meta.lastSyncAt; setLastSyncAtState(meta.lastSyncAt); }
+        if (meta.lastEtag   != null) { lastEtagRef.current   = meta.lastEtag;   setLastEtagState(meta.lastEtag); }
       } catch {}
     });
   }, []);
@@ -81,20 +86,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setLastSyncAt = useCallback((v: number) => {
+    lastSyncAtRef.current = v;
     setLastSyncAtState(v);
-    // persist asynchronously — fire-and-forget is fine here
-    setLastEtagState((etag) => {
-      void secretSet(SYNC_META_KEY, JSON.stringify({ lastSyncAt: v, lastEtag: etag }));
-      return etag;
-    });
+    void secretSet(SYNC_META_KEY, JSON.stringify({ lastSyncAt: v, lastEtag: lastEtagRef.current }));
   }, []);
 
   const setLastEtag = useCallback((v: string | null) => {
+    lastEtagRef.current = v;
     setLastEtagState(v);
-    setLastSyncAtState((ts) => {
-      void secretSet(SYNC_META_KEY, JSON.stringify({ lastSyncAt: ts, lastEtag: v }));
-      return ts;
-    });
+    void secretSet(SYNC_META_KEY, JSON.stringify({ lastSyncAt: lastSyncAtRef.current, lastEtag: v }));
   }, []);
 
   const dismissOnboarding = useCallback(() => setShowOnboarding(false), []);

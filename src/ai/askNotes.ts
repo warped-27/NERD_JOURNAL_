@@ -1,4 +1,5 @@
 import { rankByRelevance } from './tfidf';
+import { sanitizeInput } from './sanitize';
 import type { Note } from '../notes/Note';
 
 const MAX_CONTEXT_CHARS = 3_000;
@@ -32,7 +33,7 @@ export function buildAskPrompt(question: string, sources: Note[]): string {
     const remaining = MAX_CONTEXT_CHARS - context.length;
     if (remaining < header.length + 10) break;
     const bodyBudget = remaining - header.length - 2; // 2 for trailing \n\n
-    const body       = n.content.slice(0, bodyBudget);
+    const body       = sanitizeInput(n.content).slice(0, bodyBudget);
     context += `${header}${body}\n\n`;
     if (n.content.length > bodyBudget) break; // budget exhausted
   }

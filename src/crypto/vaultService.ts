@@ -23,14 +23,16 @@ export async function isVaultInitialised(): Promise<boolean> {
 export async function createVault(password: string): Promise<Uint8Array> {
   const salt = getRandomBytes(KDF_SALT_BYTES);
   const key  = await deriveKey(password, salt, KDF_PARAMS);
-
-  const envelope    = encrypt(key, toUtf8(VERIFIER_PLAINTEXT));
-  const verifierB64 = toBase64url(envelope);
-
-  await saveSalt(salt);
-  await saveVerifier(verifierB64);
-
-  return key;
+  try {
+    const envelope    = encrypt(key, toUtf8(VERIFIER_PLAINTEXT));
+    const verifierB64 = toBase64url(envelope);
+    await saveSalt(salt);
+    await saveVerifier(verifierB64);
+    return key;
+  } catch (e) {
+    key.fill(0);
+    throw e;
+  }
 }
 
 /**
@@ -46,13 +48,17 @@ export async function unlockVault(password: string): Promise<Result<Uint8Array>>
     return err('Vault not initialised');
   }
 
-  const key      = await deriveKey(password, salt, KDF_PARAMS);
-  const envelope = fromBase64url(verifierB64);
-  const result   = decrypt(key, envelope);
-
-  if (!result.ok) {
-    return err('Wrong password');
+  const key = await deriveKey(password, salt, KDF_PARAMS);
+  try {
+    const envelope = fromBase64url(verifierB64);
+    const result   = decrypt(key, envelope);
+    if (!result.ok) {
+      key.fill(0);
+      return err('Wrong password');
+    }
+    return ok(key);
+  } catch (e) {
+    key.fill(0);
+    throw e;
   }
-
-  return ok(key);
 }

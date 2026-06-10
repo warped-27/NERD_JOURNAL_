@@ -58,11 +58,13 @@ export interface MergeResult {
 }
 
 const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
+const NOTE_ID_RE   = /^[A-Za-z0-9_-]{1,32}$/;
 
 function isValidRow(r: unknown): r is NoteRow {
   if (typeof r !== 'object' || r === null) return false;
   const o = r as Record<string, unknown>;
-  if (typeof o['id'] !== 'string' || (o['id'] as string).length === 0) return false;
+  const id = o['id'];
+  if (typeof id !== 'string' || !NOTE_ID_RE.test(id)) return false;
   if (typeof o['updated_at'] !== 'number') return false;
   if (typeof o['created_at'] !== 'number') return false;
   const env = o['envelope'];
@@ -74,6 +76,12 @@ function isValidRow(r: unknown): r is NoteRow {
 }
 
 export async function mergeBundle(db: Database, bundle: SyncBundle): Promise<MergeResult> {
+  // Reject bundles from a different vault (different KDF salt = different encryption key)
+  const localSalt = await loadSalt();
+  if (localSalt && bundle.salt !== toBase64url(localSalt)) {
+    throw new Error('Sync bundle is from a different vault — re-export from the correct device');
+  }
+
   let imported  = 0;
   let skipped   = 0;
   const conflicts: ConflictInfo[] = [];
@@ -128,8 +136,15 @@ export async function applyRemoteVersion(
   remoteEnvelope: string,
   remoteUpdatedAt: number,
 ): Promise<void> {
-  await db.runAsync(
-    'UPDATE notes SET envelope = ?, updated_at = ? WHERE id = ?',
-    [remoteEnvelope, remoteUpdatedAt, noteId],
-  );
+  // Re-validate the envelope before committing — it must be a non-empty base64url string
+  // within size bounds. Full AEAD verification happens at read time via NotesRepository.
+  if (!remoteEnvelope || remoteEnvelope.length > 10_000_000 || !BASE64URL_RE.test(remoteEnvelope)) {
+    throw new Error('applyRemoteVersion: invalid envelope');
+  }
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'UPDATE notes SET envelope = ?, updated_at = ? WHERE id = ?',
+      [remoteEnvelope, remoteUpdatedAt, noteId],
+    );
+  });
 }

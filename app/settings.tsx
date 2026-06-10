@@ -254,7 +254,7 @@ export default function SettingsScreen() {
     setSyncStatus('');
     const cfg: S3Config = {
       endpoint, region: s3Region.trim() || 'auto',
-      bucket, accessKey: s3AccessKey.trim(), secretKey: s3SecretKey,
+      bucket, accessKey: s3AccessKey.trim(), secretKey: s3SecretKey.trim(),
     };
     try {
       await testS3Connection(cfg);

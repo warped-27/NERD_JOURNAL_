@@ -9,14 +9,15 @@ const INJECTION_PATTERNS = [
   /new\s+instructions?\s*:/gi,
   /\[system\]/gi,
   /<\s*system\s*>/gi,
-  /act\s+as\s+(if\s+you\s+(are|were)|a[n]?\s)/gi,
+  /act\s+as\s+(if\s+you\s+(are|were)|a[n]?\s+)/gi,
   /\bjailbreak\b/gi,
   /\bDAN\b/g,
   /prompt\s+injection/gi,
 ];
 
-// Unicode non-ASCII whitespace: U+00A0 (NBSP), U+2000-U+200A (typographic spaces),
-// U+202F (narrow NBSP), U+205F (math space), U+3000 (ideographic space).
+// Unicode non-ASCII whitespace — explicit escapes for auditability:
+// U+00A0 (NBSP), U+2000-U+200A (typographic spaces), U+202F (narrow NBSP),
+// U+205F (math space), U+3000 (ideographic space).
 const UNICODE_SPACES = /[  -   　]/g;
 
 export function sanitizeInput(text: string): string {
@@ -24,10 +25,8 @@ export function sanitizeInput(text: string): string {
 
   let s = text;
 
-  // Truncate
-  if (s.length > MAX_PROMPT_CHARS) s = s.slice(0, MAX_PROMPT_CHARS);
-
-  // Strip zero-width and invisible Unicode characters
+  // Strip zero-width and invisible Unicode characters before truncating so they
+  // cannot be used to pad injection content past the character limit.
   s = s.replace(/[​-‏‪-‮⁠-⁤﻿]/g, '');
 
   // Strip null bytes
@@ -40,10 +39,13 @@ export function sanitizeInput(text: string): string {
   // cannot be bypassed using Unicode lookalikes (no-break space, em/en spaces, etc.).
   s = s.replace(UNICODE_SPACES, ' ');
 
-  // Remove injection patterns
+  // Remove injection patterns (after normalization so Unicode tricks don't bypass them)
   for (const pattern of INJECTION_PATTERNS) {
     s = s.replace(pattern, '[removed]');
   }
+
+  // Truncate after all normalization so the final 4000 chars are clean
+  if (s.length > MAX_PROMPT_CHARS) s = s.slice(0, MAX_PROMPT_CHARS);
 
   // Collapse multiple spaces to single (not newlines, not tabs)
   s = s.replace(/ {2,}/g, ' ');
