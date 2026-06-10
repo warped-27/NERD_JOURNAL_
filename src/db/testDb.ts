@@ -57,5 +57,9 @@ export function createTestDb(): Database {
       const id = params?.[0] as string | undefined;
       return (id ? (notes.get(id) ?? null) : null) as unknown as T | null;
     },
+
+    async withTransactionAsync(task: () => Promise<void>): Promise<void> {
+      await task();
+    },
   };
 }
