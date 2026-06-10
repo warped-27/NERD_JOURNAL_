@@ -15,6 +15,9 @@ export const CLAUDE_MODELS = [
 
 export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-6';
 
+const TIMEOUT_MS = 30_000;
+const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
+
 interface AnthropicResponse {
   content?: Array<{ type: string; text?: string }>;
   error?:   { message: string };
@@ -24,10 +27,14 @@ export function makeClaudeProvider(config: ClaudeConfig): AiProvider {
   return {
     id: 'claude',
     async complete(prompt: string): Promise<string> {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
       let response: Response;
       try {
         response = await fetch('https://api.anthropic.com/v1/messages', {
-          method:  'POST',
+          method:   'POST',
+          redirect: 'manual',
+          signal:   controller.signal,
           headers: {
             'Content-Type':      'application/json',
             'x-api-key':         config.apiKey,
@@ -39,8 +46,17 @@ export function makeClaudeProvider(config: ClaudeConfig): AiProvider {
             messages:   [{ role: 'user', content: prompt }],
           }),
         });
+        if (response.type === 'opaqueredirect' || REDIRECT_CODES.has(response.status)) {
+          throw new Error('claude: unexpected redirect — check API endpoint');
+        }
       } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw new Error('claude: request timed out after 30s');
+        }
+        if (e instanceof Error && e.message.startsWith('claude:')) throw e;
         throw new Error(`claude: network error — ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        clearTimeout(timer);
       }
 
       let body: AnthropicResponse;

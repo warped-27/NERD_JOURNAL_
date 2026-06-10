@@ -67,30 +67,33 @@ export async function mergeBundle(db: Database, bundle: SyncBundle): Promise<Mer
   let imported = 0;
   let skipped  = 0;
 
-  for (const row of bundle.notes) {
-    if (!isValidRow(row)) { skipped++; continue; }
+  // Wrap all writes in a transaction so a mid-import crash leaves the DB clean.
+  await db.withTransactionAsync(async () => {
+    for (const row of bundle.notes) {
+      if (!isValidRow(row)) { skipped++; continue; }
 
-    const existing = await db.getFirstAsync<{ updated_at: number }>(
-      'SELECT updated_at FROM notes WHERE id = ?',
-      [row.id],
-    );
+      const existing = await db.getFirstAsync<{ updated_at: number }>(
+        'SELECT updated_at FROM notes WHERE id = ?',
+        [row.id],
+      );
 
-    if (!existing) {
-      await db.runAsync(
-        'INSERT INTO notes (id, envelope, updated_at, created_at) VALUES (?, ?, ?, ?)',
-        [row.id, row.envelope, row.updated_at, row.created_at],
-      );
-      imported++;
-    } else if (row.updated_at > existing.updated_at) {
-      await db.runAsync(
-        'UPDATE notes SET envelope = ?, updated_at = ? WHERE id = ?',
-        [row.envelope, row.updated_at, row.id],
-      );
-      imported++;
-    } else {
-      skipped++;
+      if (!existing) {
+        await db.runAsync(
+          'INSERT INTO notes (id, envelope, updated_at, created_at) VALUES (?, ?, ?, ?)',
+          [row.id, row.envelope, row.updated_at, row.created_at],
+        );
+        imported++;
+      } else if (row.updated_at > existing.updated_at) {
+        await db.runAsync(
+          'UPDATE notes SET envelope = ?, updated_at = ? WHERE id = ?',
+          [row.envelope, row.updated_at, row.id],
+        );
+        imported++;
+      } else {
+        skipped++;
+      }
     }
-  }
+  });
 
   return { imported, skipped };
 }

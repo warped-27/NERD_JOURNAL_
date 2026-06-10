@@ -13,30 +13,46 @@ interface OaiResponse {
   error?: { message: string };
 }
 
+const TIMEOUT_MS = 30_000;
+const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
+
 export function makeOpenAiCompatProvider(config: OpenAiCompatConfig): AiProvider {
   assertSafeUrl(config.baseUrl);
   const base = config.baseUrl.replace(/\/+$/, '');
   return {
     id: config.id,
     async complete(prompt: string): Promise<string> {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
       let response: Response;
       try {
         response = await fetch(`${base}/v1/chat/completions`, {
-          method: 'POST',
+          method:   'POST',
+          redirect: 'manual',
+          signal:   controller.signal,
           headers: {
             'Content-Type': 'application/json',
             ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
           },
           body: JSON.stringify({
-            model:      config.model,
-            messages:   [{ role: 'user', content: prompt }],
-            stream:     false,
+            model:       config.model,
+            messages:    [{ role: 'user', content: prompt }],
+            stream:      false,
             temperature: 0.3,
             max_tokens:  1024,
           }),
         });
+        if (response.type === 'opaqueredirect' || REDIRECT_CODES.has(response.status)) {
+          throw new Error(`${config.id}: unexpected redirect — check base URL`);
+        }
       } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw new Error(`${config.id}: request timed out after 30s`);
+        }
+        if (e instanceof Error && e.message.includes(config.id)) throw e;
         throw new Error(`${config.id}: network error — ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        clearTimeout(timer);
       }
 
       let body: OaiResponse;
@@ -65,13 +81,21 @@ export function makeOpenAiCompatProvider(config: OpenAiCompatConfig): AiProvider
 export async function testOpenAiCompatConnection(baseUrl: string, apiKey?: string): Promise<void> {
   assertSafeUrl(baseUrl);
   const base = baseUrl.replace(/\/+$/, '');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(`${base}/v1/models`, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal:  controller.signal,
     });
   } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('Server did not respond within 30s');
+    }
     throw new Error(`Cannot reach server: ${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    clearTimeout(timer);
   }
   if (response.status === 401 && apiKey) {
     throw new Error('Invalid API key — check your credentials');

@@ -25,6 +25,7 @@ function makeDb(existingRows: { id: string; updated_at: number }[] = []) {
     }),
     runAsync: jest.fn().mockResolvedValue({ lastInsertRowId: 0, changes: 1 }),
     execAsync: jest.fn().mockResolvedValue(undefined),
+    withTransactionAsync: jest.fn(async (cb: () => Promise<void>) => { await cb(); }),
   };
 }
 
