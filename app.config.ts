@@ -59,7 +59,7 @@ const config: ExpoConfig = {
     'expo-secure-store',
     'expo-sqlite',
     [
-      'expo-av',
+      'expo-audio',
       {
         microphonePermission:
           'NERD_JOURNAL_ records your voice so you can dictate journal entries.',
@@ -89,7 +89,7 @@ const config: ExpoConfig = {
 
   extra: {
     eas: {
-      projectId: '',
+      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? '',
     },
   },
 };

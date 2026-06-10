@@ -10,7 +10,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "expo": "^56.0.8",
-    "expo-av": "^16.0.8",
+    "expo-audio": "^56.0.11",
     "expo-build-properties": "56.0.17",
     "expo-constants": "~56.0.16",
     "expo-document-picker": "~56.0.4",
@@ -63,7 +63,7 @@
     "build:tauri": "tauri build",
     "test": "jest",
     "test:watch": "jest --watch",
-    "lint": "eslint src --ext .ts,.tsx",
+    "lint": "eslint src app",
     "typecheck": "tsc --noEmit"
   },
   "private": true

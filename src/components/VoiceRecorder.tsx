@@ -1,6 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Audio } from 'expo-av';
+import {
+  useAudioRecorder,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  RecordingPresets,
+} from 'expo-audio';
 import type { Attachment } from '../notes/Note';
 import { newId } from '../lib/id';
 import { useAi } from '../ai/AiContext';
@@ -20,7 +25,8 @@ type RecordState = 'idle' | 'recording' | 'recorded' | 'transcribing';
 export function VoiceRecorder({ onAdd, onCancel }: Props) {
   const ai      = useAi();
   const whisper = useWhisper();
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
   const [state,       setState]       = useState<RecordState>('idle');
   const [duration,    setDuration]    = useState(0);
   const [audioBase64, setAudioBase64] = useState<string | null>(null);
@@ -31,22 +37,20 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
   useEffect(() => {
     return () => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+      recorder.stop().catch(() => {});
     };
-  }, []);
+  }, [recorder]);
 
   const startRecording = useCallback(async () => {
     setError('');
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) { setError('Microphone permission denied.'); return; }
 
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-      recordingRef.current = recording;
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setState('recording');
       setDuration(0);
 
@@ -54,23 +58,19 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Recording failed');
     }
-  }, []);
+  }, [recorder]);
 
   const stopRecording = useCallback(async () => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    const recording = recordingRef.current;
-    if (!recording) return;
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      recordingRef.current = null;
+      await recorder.stop();
+      const uri = recorder.uri;
 
       if (!uri) { setError('No audio captured.'); setState('idle'); return; }
 
-      // Read file as base64 via fetch
-      const resp   = await fetch(uri);
-      const blob   = await resp.blob();
-      const b64    = await blobToBase64(blob);
+      const resp = await fetch(uri);
+      const blob = await resp.blob();
+      const b64  = await blobToBase64(blob);
       setAudioBase64(b64);
       setAudioUri(uri);
       setState('recorded');
@@ -78,7 +78,7 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
       setError(e instanceof Error ? e.message : 'Stop failed');
       setState('idle');
     }
-  }, []);
+  }, [recorder]);
 
   const handleSave = useCallback(() => {
     if (!audioBase64) return;
@@ -97,7 +97,6 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
     if (!audioBase64 || !audioUri) return;
 
     const whisperFn = whisper.status === 'loaded' ? whisper.transcribe : null;
-    // Cloud fallback requires consent; on-device Whisper does not
     if (!whisperFn && !ai.hasConsented) {
       setError('AI consent required. Tap ASK AI in the note editor to enable cloud AI first.');
       return;
@@ -119,13 +118,13 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
     );
     if (result.ok) {
       const attachment: Attachment = {
-        id:             newId(),
-        type:           'voice',
-        createdAt:      Date.now(),
-        data:           audioBase64,
-        mimeType:       'audio/m4a',
+        id:            newId(),
+        type:          'voice',
+        createdAt:     Date.now(),
+        data:          audioBase64,
+        mimeType:      'audio/m4a',
         duration,
-        transcription:  result.value,
+        transcription: result.value,
       };
       onAdd(attachment);
     } else {
@@ -134,7 +133,8 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
     }
   }, [audioBase64, audioUri, whisper.status, whisper.transcribe, ai.apiKey, ai.model, ai.hasConsented, duration, onAdd]);
 
-  const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+  const fmt = (s: number) =>
+    `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
   return (
     <View style={styles.root} testID="voice-recorder">
