@@ -11,8 +11,6 @@
 
 There is no central database, no subscription, no proxy server. Your notes are encrypted on-device before they ever touch storage or the network. Your keys are yours. Your cloud is yours.
 
-Three pillars:
-
 | Pillar | What it means |
 |---|---|
 | **Zero-Knowledge Encryption** | AES-256-GCM with a key derived via Argon2id from your master password. Notes never leave the device in plain text. |
@@ -27,7 +25,7 @@ Three pillars:
 - Brutalist terminal aesthetic — `border-radius: 0`, phosphor-green accents, JetBrains Mono, CRT scanlines
 - Responsive: single-column on mobile, two-panel sidebar layout on desktop (Tauri)
 - Keyboard shortcuts on desktop (`⌘N` new note, `⌘K` ask, `⌘⌫` back)
-- System tray integration on macOS/Windows/Linux
+- System tray integration on macOS / Windows / Linux
 
 ### Notes & Knowledge
 - Full SQLite database, offline-first
@@ -38,38 +36,56 @@ Three pillars:
 - Daily writing prompts
 
 ### AI — Provider Cascade
+
 AI requests flow through a local-first cascade — the first available provider wins:
 
 ```
 llama.rn (on-device) → Ollama → MLX → Custom → Claude → Gemini
 ```
 
-| Provider | Type | Notes |
-|---|---|---|
-| **llama.rn** | On-device (iOS/Android) | Gemma 3 4B, Q4_K_M — fully offline |
-| **Ollama** | Local LAN | Any Ollama model, e.g. `llama3.2:3b` |
-| **MLX** | Local (Apple Silicon) | `mlx_lm.server`, any MLX-compatible model |
-| **OpenAI** | Cloud (BYOK) | `api.openai.com` — preset in Settings |
-| **Grok (xAI)** | Cloud (BYOK) | `api.x.ai` — preset in Settings |
-| **Mistral** | Cloud (BYOK) | `api.mistral.ai` — preset in Settings |
-| **Perplexity** | Cloud (BYOK) | `api.perplexity.ai` — preset in Settings |
-| **Custom** | Cloud/Local (BYOK) | Any OpenAI-compatible endpoint |
-| **Claude (Anthropic)** | Cloud (BYOK) | Dedicated provider — Fable 5, Opus 4.8, Sonnet 4.6, Haiku 4.5 |
-| **Gemini** | Cloud (BYOK) | Default fallback — Flash Lite, Flash, 2.5 variants |
+| Provider | Privacy level | Platform | Notes |
+|---|---|---|---|
+| **llama.rn** | 🟢 On-device | iOS · Android | Gemma 3 4B Q4_K_M — fully offline, no consent needed |
+| **Ollama** | 🟡 Local LAN | Desktop · Mobile (LAN IP) | Any Ollama model, e.g. `llama3.2:3b` |
+| **MLX** | 🟡 Local | macOS Apple Silicon | `mlx_lm.server`, any MLX-compatible model |
+| **OpenAI** | 🔴 Cloud (BYOK) | All | `api.openai.com` — quick-setup preset in Settings |
+| **Grok (xAI)** | 🔴 Cloud (BYOK) | All | `api.x.ai` — quick-setup preset in Settings |
+| **Mistral** | 🔴 Cloud (BYOK) | All | `api.mistral.ai` — quick-setup preset in Settings |
+| **Perplexity** | 🔴 Cloud (BYOK) | All | `api.perplexity.ai` — quick-setup preset in Settings |
+| **Custom** | 🔴/🟡 BYOK | All | Any OpenAI-compatible endpoint |
+| **Claude (Anthropic)** | 🔴 Cloud (BYOK) | All | Fable 5 · Opus 4.8 · Sonnet 4.6 · Haiku 4.5 |
+| **Gemini** | 🔴 Cloud (BYOK) | All | Default cloud fallback — Flash Lite, Flash, 2.5 variants |
+
+**Privacy levels:**
+- 🟢 **On-device** — inference runs locally; no network, no consent dialog
+- 🟡 **Local** — request stays on your machine or LAN; no consent dialog
+- 🔴 **Cloud** — note text is decrypted in memory and sent over HTTPS; one-time consent required
+
+### AI Privacy & Consent
+
+When the active cascade includes a cloud provider, a **mandatory consent dialog** appears on first use. It names the specific provider (e.g. "Anthropic Claude"), explains that note content is decrypted in memory before transmission, and confirms that all calls use HTTPS. The consent is stored locally and covers all configured cloud providers. It can be revoked at any time by removing cloud API keys from Settings.
+
+**Auto-enrichment** (background tagging/summarisation on save) respects the same rules: if only local/on-device providers are configured, it runs without any consent prompt; cloud calls are blocked until the user explicitly consents.
+
+**All network calls to cloud AI providers include:**
+- 30-second timeout with `AbortController`
+- `redirect: 'manual'` to prevent credential leakage on unexpected redirects
+- HTTPS enforced — HTTP is only permitted for loopback addresses (localhost, 127.0.0.1)
+
+### Voice Transcription (Whisper)
+- **On-device** (iOS / Android): Whisper Small (244 MB, downloaded once from HuggingFace `ggerganov/whisper.cpp`) — audio never leaves the device, works fully offline
+- **Desktop / Web**: unavailable — shown with a clear "macOS / iOS / Android only" notice in Settings
 
 ### Second Brain (RAG)
-Ask questions across your entire note collection. TF-IDF retrieval selects the most relevant notes, builds a context window, and queries the active AI provider — all without sending embeddings to any third party.
-
-### Voice Transcription
-- **On-device**: Whisper Small (244 MB, runs fully offline on iOS/Android)
-- **Fallback**: disabled gracefully on web/desktop where native Whisper is unavailable
+Ask questions across your entire note collection. TF-IDF retrieval selects the most relevant notes, builds a context window, and queries the active AI provider — no embeddings, no third-party vector store.
 
 ### Security
-- Vault unlock: master password (always) + optional Face ID / Fingerprint (iOS/Android)
+- Vault unlock: master password (always) + optional Face ID / Fingerprint (iOS / Android)
 - Biometric key stored in device Secure Enclave — never leaves hardware
 - OS keychain on desktop (Rust `keyring` crate via Tauri IPC)
 - Tauri IPC allowlist: JS can only read/write explicitly named keychain keys
 - Content Security Policy locks outbound connections to known AI/sync endpoints
+- Sync bundle import wrapped in SQLite transaction — partial import on crash leaves DB clean
 
 ### Sync
 - **WebDAV / Nextcloud / ownCloud**: push/pull of encrypted bundle, ETag-based conditional sync
@@ -80,12 +96,17 @@ Ask questions across your entire note collection. TF-IDF retrieval selects the m
 
 ## Platform Support
 
-| Platform | How to run | Native features |
+| Platform | How to run | Native-only features |
 |---|---|---|
-| **Web (browser)** | `npm run web` | Core notes, AI via API, WebDAV sync |
-| **Desktop (Tauri)** | `npm run dev:tauri` | + OS keychain, file pickers, tray, keyboard shortcuts |
-| **iOS** | EAS build or `npx expo run:ios` | + llama.rn, Whisper, biometrics, camera |
-| **Android** | EAS build or `npx expo run:android` | + llama.rn, Whisper, biometrics, camera |
+| **Web (browser)** | `npm run web` | — |
+| **Desktop (Tauri)** | `npm run dev:tauri` | OS keychain · file pickers · tray · keyboard shortcuts |
+| **iOS** | EAS build or `npx expo run:ios` | llama.rn · Whisper · biometrics · camera |
+| **Android** | EAS build or `npx expo run:android` | llama.rn · Whisper · biometrics · camera |
+
+> **Platform notes:**
+> - Ollama on mobile: `localhost` refers to the phone itself. Use the computer's LAN IP (e.g. `http://192.168.1.x:11434`) or Tailscale.
+> - MLX: macOS Apple Silicon only. Not available on iOS, Android, or Intel Macs.
+> - Whisper STT: iOS and Android native builds only. Desktop/web show a clear unavailability notice.
 
 ---
 
@@ -100,11 +121,11 @@ npm install
 npm run web
 ```
 
-No environment variables required. The Gemini API key (and any other provider key) is entered inside the app Settings screen and stored in the device keychain.
+No environment variables required. API keys (Gemini, Claude, OpenAI, etc.) are entered in the app's Settings screen and stored in the device keychain.
 
 ### Desktop (Tauri)
 
-Requires [Rust](https://rustup.rs) and the Tauri system dependencies for your OS.
+Requires [Rust](https://rustup.rs) and Tauri system dependencies for your OS.
 
 ```bash
 # macOS / Linux (one-time)
@@ -113,7 +134,7 @@ curl https://sh.rustup.rs -sSf | sh
 # Linux — additional system deps
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
 
-# Run in dev mode (hot-reload)
+# Dev mode (hot-reload)
 npm run dev:tauri
 
 # Production build (.dmg / .msi / .deb / .AppImage)
@@ -122,7 +143,7 @@ npm run build:tauri
 
 ### Mobile (iOS / Android)
 
-**With EAS cloud build** (no local toolchain required):
+**EAS cloud build** (no local toolchain required):
 
 ```bash
 npm install -g eas-cli
@@ -156,12 +177,12 @@ npx expo run:ios
 | Navigation | Expo Router (file-based) |
 | Database | expo-sqlite (SQLite, on-device) |
 | Encryption | AES-256-GCM (`@noble/ciphers`) · Argon2id KDF (`@noble/hashes`) |
-| On-device LLM | llama.rn (iOS/Android) |
-| On-device STT | whisper.rn (iOS/Android) |
+| On-device LLM | llama.rn (iOS / Android) |
+| On-device STT | whisper.rn (iOS / Android) |
 | Similarity search | TF-IDF cosine similarity (no external service) |
 | State | Zustand + React Context |
 | Styling | React Native StyleSheet — JetBrains Mono, design tokens |
-| Tests | Jest + jest-expo (365 tests) |
+| Tests | Jest + jest-expo (367 tests, 50 suites) |
 | Type checking | TypeScript 6 (strict) |
 
 ---
@@ -177,15 +198,15 @@ app/                  Expo Router screens
 src/
   ai/                 AI providers, RAG, enrichment, TF-IDF
     providers/        gemini · openAiCompat · claude · llamaRn
-    whisper/          Whisper STT context + model manager
-    onDevice/         llama.rn context + model manager
+                      Each provider declares privacyLevel + displayName
+    whisper/          Whisper STT context + model manager (native only)
+    onDevice/         llama.rn context + model manager (native only)
   crypto/             Vault (AES-GCM + Argon2id), biometrics, keychain
   notes/              Note model, store, search, related notes
   sync/               WebDAV sync, file export/import, encrypted bundle
   stats/              Streak, word count, sparkline, daily prompts
   design/             Design tokens, Box, T, Btn, Input components
-  platform/           isTauri() / isNative() detection, file system abstraction
-  hooks/              useKeyboardShortcuts
+  platform/           isTauri() / isNative() detection
   lib/                URL validation, logger, Result type
 
 src-tauri/            Rust — OS keychain IPC, system tray, file pickers
@@ -199,7 +220,7 @@ src-tauri/            Rust — OS keychain IPC, system tray, file pickers
 npm run web           # Expo web dev server
 npm run dev:tauri     # Tauri desktop dev mode
 npm run build:tauri   # Tauri production build
-npm test              # Jest test suite
+npm test              # Jest (367 tests)
 npm run typecheck     # tsc --noEmit
 ```
 
