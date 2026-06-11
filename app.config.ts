@@ -20,7 +20,10 @@ const config: ExpoConfig = {
       NSPhotoLibraryAddUsageDescription:
         'NERD_JOURNAL_ saves images to your photo library.',
       NSCameraUsageDescription:
-        'NERD_JOURNAL_ uses the camera so you can photograph pages or scenes for a journal entry.',
+        'NERD_JOURNAL_ uses the camera so you can photograph pages or scenes for a journal entry and scan QR codes to sync with your desktop.',
+      NSAppTransportSecurity: {
+        NSAllowsLocalNetworking: true,
+      },
     },
   },
 
@@ -58,6 +61,13 @@ const config: ExpoConfig = {
     ],
     'expo-secure-store',
     'expo-sqlite',
+    [
+      'expo-camera',
+      {
+        cameraPermission:
+          'NERD_JOURNAL_ uses the camera to scan QR codes for LAN sync and to photograph journal entries.',
+      },
+    ],
     [
       'expo-audio',
       {

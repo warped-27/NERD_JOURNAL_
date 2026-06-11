@@ -1,3 +1,6 @@
+mod lan_sync;
+use lan_sync::LanSyncManager;
+
 use keyring::{Entry, Error as KeyringError};
 use tauri::{
     menu::{Menu, MenuItem},
@@ -82,6 +85,7 @@ fn show_main_window(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(LanSyncManager::new())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_tray::init())
@@ -117,6 +121,9 @@ pub fn run() {
             get_secret,
             set_secret,
             delete_secret,
+            lan_sync::lan_sync_start,
+            lan_sync::lan_sync_status,
+            lan_sync::lan_sync_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running NERD_JOURNAL_");

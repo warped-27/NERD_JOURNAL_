@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Image, View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { isNativePlatform } from '../src/platform/detect';
+import { isNativePlatform, isTauri } from '../src/platform/detect';
 import { useVault } from '../src/crypto/VaultContext';
 import { useAi, GEMINI_MODELS } from '../src/ai/AiContext';
 import { useOnDevice } from '../src/ai/onDevice/OnDeviceContext';
@@ -13,10 +13,15 @@ import { useNotes } from '../src/notes/NotesContext';
 import { webdavPush, webdavPull, testWebDavConnection } from '../src/sync/providers/webdavSync';
 import { s3Push, s3Pull, testS3Connection, type S3Config } from '../src/sync/providers/s3Sync';
 import { exportToFile, importFromFile } from '../src/sync/providers/fileSync';
+import {
+  startLanServer, getLanSyncResult, stopLanServer,
+  mobileSync, parseLanUrl, type LanSyncInfo,
+} from '../src/sync/providers/lanSync';
 import { classifySyncError } from '../src/sync/syncError';
 import { bundleToMarkdown } from '../src/export/markdownExport';
 import { saveTextFile } from '../src/platform/fileSystem';
 import { ConflictResolutionModal } from '../src/components/ConflictResolutionModal';
+import { LanSyncScanner } from '../src/components/LanSyncScanner';
 import { Box } from '../src/design/components/Box';
 import { T } from '../src/design/components/T';
 import { Input } from '../src/design/components/Input';
@@ -91,6 +96,15 @@ export default function SettingsScreen() {
   const [s3Syncing,   setS3Syncing]   = useState(false);
   // Collapsed by default unless S3 is already the active provider
   const [s3Expanded,  setS3Expanded]  = useState(sync.config.provider === 's3');
+
+  // LAN sync state
+  const [lanInfo,        setLanInfo]        = useState<LanSyncInfo | null>(null);
+  const [lanCountdown,   setLanCountdown]   = useState(0);
+  const [lanStatus,      setLanStatus]      = useState('');
+  const [lanScanning,    setLanScanning]    = useState(false);
+  const lanPollRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [lanQrUri,       setLanQrUri]       = useState<string | null>(null);
 
   // Biometric status
   const [bioLoading, setBioLoading] = useState(false);
@@ -334,6 +348,85 @@ export default function SettingsScreen() {
       setSyncStatus(`Imported ${result.imported} note(s) ✓`);
     } catch (e) {
       setSyncStatus(classifySyncError(e));
+    }
+  }
+
+  // ─── LAN Sync ──────────────────────────────────────────────────────────────
+
+  const stopLan = useCallback(() => {
+    if (lanPollRef.current)  clearInterval(lanPollRef.current);
+    if (lanTimerRef.current) clearInterval(lanTimerRef.current);
+    lanPollRef.current  = null;
+    lanTimerRef.current = null;
+    void stopLanServer().catch(() => {});
+    setLanInfo(null);
+    setLanQrUri(null);
+    setLanCountdown(0);
+  }, []);
+
+  async function handleLanStart() {
+    setLanStatus('');
+    try {
+      const bundle     = await notes.exportBundle();
+      const bundleJson = JSON.stringify(bundle);
+      const info       = await startLanServer(bundleJson);
+      setLanInfo(info);
+      setLanCountdown(300);
+
+      // Generate QR as data URL (desktop web renderer supports qrcode lib)
+      const QRCode = await import('qrcode');
+      const uri = await QRCode.toDataURL(info.url, {
+        width: 200,
+        color: { dark: '#33ff33', light: '#04070a' },
+        margin: 2,
+      });
+      setLanQrUri(uri);
+
+      // Countdown timer
+      lanTimerRef.current = setInterval(() => {
+        setLanCountdown((t) => {
+          if (t <= 1) { stopLan(); return 0; }
+          return t - 1;
+        });
+      }, 1000);
+
+      // Poll for result from mobile
+      lanPollRef.current = setInterval(async () => {
+        try {
+          const result = await getLanSyncResult();
+          if (result) {
+            stopLan();
+            const { parseBundle } = await import('../src/sync/SyncBundle');
+            const remoteBundle = parseBundle(result);
+            const mergeResult  = await notes.importBundle(remoteBundle);
+            if (mergeResult.conflicts.length > 0) {
+              sync.setPendingConflicts(mergeResult.conflicts);
+            }
+            sync.setLastSyncAt(Date.now());
+            setLanStatus(`LAN sync complete ✓ — ${mergeResult.imported} note(s) updated`);
+          }
+        } catch { /* ignore poll errors */ }
+      }, 1000);
+    } catch (e) {
+      setLanStatus(e instanceof Error ? e.message : 'LAN sync failed');
+    }
+  }
+
+  async function handleLanScan(url: string) {
+    setLanScanning(false);
+    setLanStatus('Connecting…');
+    try {
+      const target = parseLanUrl(url);
+      const result = await mobileSync(
+        target,
+        () => notes.exportBundle(),
+        (b) => notes.importBundle(b),
+      );
+      if (result.conflicts.length > 0) sync.setPendingConflicts(result.conflicts);
+      sync.setLastSyncAt(Date.now());
+      setLanStatus(`LAN sync complete ✓ — ${result.imported} note(s) updated`);
+    } catch (e) {
+      setLanStatus(e instanceof Error ? e.message : 'LAN sync failed');
     }
   }
 
@@ -980,6 +1073,91 @@ export default function SettingsScreen() {
           </T>
         )}
 
+        {/* ─── LAN SYNC ─── */}
+        <T variant="heading" style={[styles.section, styles.syncHeading]}>LAN SYNC</T>
+        <T variant="muted" style={styles.hint}>
+          Sync with another device on the same Wi-Fi — no internet, no account.
+          {isTauri()
+            ? ' Start the server here, then tap "Scan QR" on your phone.'
+            : isNativePlatform()
+            ? ' Start the server on your desktop, then tap Scan QR below.'
+            : ' Available on desktop (Tauri) and mobile only.'}
+        </T>
+
+        {/* Desktop server */}
+        {isTauri() && (
+          <>
+            {lanInfo ? (
+              <View style={styles.lanBox}>
+                {lanQrUri ? (
+                  <Image
+                    source={{ uri: lanQrUri }}
+                    style={styles.qr}
+                    accessibilityLabel="LAN sync QR code"
+                  />
+                ) : null}
+                <T variant="label" style={styles.lanAddr}>
+                  {lanInfo.ip}:{lanInfo.port}
+                </T>
+                <T variant="muted" style={styles.lanPin}>PIN: {lanInfo.pin}</T>
+                <T variant="caption" style={styles.lanTimer}>
+                  ⏱ {Math.floor(lanCountdown / 60)}:{String(lanCountdown % 60).padStart(2, '0')}
+                </T>
+                <Btn
+                  label="CANCEL"
+                  variant="danger"
+                  onPress={stopLan}
+                  style={[styles.btn, styles.fullBtn]}
+                  testID="lan-cancel"
+                />
+              </View>
+            ) : (
+              <Btn
+                label="START LAN SYNC"
+                variant="primary"
+                onPress={handleLanStart}
+                style={[styles.btn, styles.fullBtn]}
+                testID="lan-start"
+              />
+            )}
+          </>
+        )}
+
+        {/* Mobile scanner */}
+        {isNativePlatform() && (
+          <>
+            {lanScanning ? (
+              <View style={styles.lanScanBox}>
+                <LanSyncScanner onScanned={handleLanScan} />
+                <Btn
+                  label="CANCEL"
+                  variant="ghost"
+                  onPress={() => setLanScanning(false)}
+                  style={[styles.btn, styles.fullBtn]}
+                />
+              </View>
+            ) : (
+              <Btn
+                label="SCAN QR"
+                variant="primary"
+                onPress={() => { setLanStatus(''); setLanScanning(true); }}
+                style={[styles.btn, styles.fullBtn]}
+                testID="lan-scan"
+              />
+            )}
+          </>
+        )}
+
+        {lanStatus ? (
+          <T
+            variant={lanStatus.includes('✓') ? 'label' : 'error'}
+            style={[styles.status, styles.sectionGap]}
+            testID="lan-status"
+          >
+            {lanStatus}
+          </T>
+        ) : null}
+
         {/* WebDAV form */}
         <T variant="label" style={styles.label}>WEBDAV / NEXTCLOUD</T>
         <T variant="muted" style={styles.hint}>
@@ -1277,6 +1455,19 @@ const styles = StyleSheet.create({
   },
   presetChipText:       { color: Colors.textMuted },
   presetChipTextActive: { color: Colors.green },
+  lanBox: {
+    alignItems:    'center',
+    gap:           Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderWidth:   1,
+    borderColor:   Colors.green,
+    marginBottom:  Spacing.md,
+  },
+  qr:       { width: 200, height: 200 },
+  lanAddr:  { letterSpacing: 1 },
+  lanPin:   { letterSpacing: 2, fontSize: 18 },
+  lanTimer: { color: Colors.textMuted },
+  lanScanBox: { gap: Spacing.sm, marginBottom: Spacing.md },
   advancedToggle: {
     flexDirection:     'row',
     alignItems:        'center',
