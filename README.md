@@ -86,6 +86,7 @@ Ask questions across your entire note collection via the dedicated **Second Brai
 
 | Method | Details |
 |---|---|
+| **LAN Sync** | One-command sync between desktop and mobile on the same Wi-Fi — no internet, no account |
 | **WebDAV / Nextcloud / ownCloud** | Push/pull of encrypted bundle, ETag-based conditional sync (skips download if unchanged) |
 | **S3-compatible storage** | AWS S3, Cloudflare R2, Backblaze B2, MinIO — SigV4 signed requests, ETag conditional GET |
 | **File backup** | Export/import encrypted `.njvault` bundle manually |
@@ -97,6 +98,15 @@ All sync methods:
 - Last-writer-wins merge with per-note conflict detection and user-facing resolution UI
 - Delta push: skips upload if nothing changed since last sync
 
+#### LAN Sync — how it works
+
+1. Tap **START LAN SYNC** on the desktop — an Axum HTTP server starts on a random port, a one-time 6-character PIN is generated, and a QR code appears on screen.
+2. Tap **SCAN QR** on the mobile app — the camera reads the QR code; the device connects directly to the desktop over the local network.
+3. The mobile pulls the desktop's encrypted bundle, merges it locally, then pushes the merged result back. Both devices end up in sync in a single round-trip.
+4. The server shuts down automatically after 5 minutes or as soon as the exchange completes.
+
+**Security:** the bundle is AES-256-GCM encrypted at the application layer before it travels over HTTP. The one-time PIN prevents any other device on the same network from connecting. On iOS, `NSAllowsLocalNetworking` permits HTTP to LAN addresses. On Android, `android:usesCleartextTraffic` is set via a build-time config plugin — justified by application-layer encryption. The PIN is rejected if a bundle was already received (prevents concurrent PUT races). Any QR code pointing to a non-RFC-1918 address is rejected before a single byte is sent (SSRF guard).
+
 ### Security
 - Vault unlock: master password (always) + optional Face ID / Fingerprint (iOS / Android)
 - Biometric key stored in device Secure Enclave — never leaves hardware; requires passcode to be set
@@ -106,6 +116,7 @@ All sync methods:
 - Sync credentials (`nj_sync_config`) stored in sessionStorage on web — not persisted across browser restarts
 - Content Security Policy locks outbound connections to known AI/sync endpoints
 - All S3 and WebDAV fetch calls use `redirect: 'manual'` to prevent credential forwarding
+- LAN sync: SSRF guard rejects QR codes pointing outside RFC-1918 / loopback; one-time PIN; 409 on concurrent PUT
 
 ---
 
@@ -114,14 +125,15 @@ All sync methods:
 | Platform | How to run | Native-only features |
 |---|---|---|
 | **Web (browser)** | `npm run web` | — |
-| **Desktop (Tauri)** | `npm run dev:tauri` | OS keychain · file pickers · tray · keyboard shortcuts |
-| **iOS** | EAS build or `npx expo run:ios` | llama.rn · Whisper · biometrics · camera |
-| **Android** | EAS build or `npx expo run:android` | llama.rn · Whisper · biometrics · camera |
+| **Desktop (Tauri)** | `npm run dev:tauri` | OS keychain · file pickers · tray · keyboard shortcuts · LAN sync server |
+| **iOS** | EAS build or `npx expo run:ios` | llama.rn · Whisper · biometrics · camera · LAN sync QR scanner |
+| **Android** | EAS build or `npx expo run:android` | llama.rn · Whisper · biometrics · camera · LAN sync QR scanner |
 
 > **Platform notes:**
 > - Ollama on mobile: `localhost` refers to the phone itself. Use the computer's LAN IP (e.g. `http://192.168.1.x:11434`) or Tailscale.
 > - MLX: macOS Apple Silicon only. Not available on iOS, Android, or Intel Macs.
 > - Whisper STT: iOS and Android native builds only. Desktop/web show a clear unavailability notice.
+> - LAN sync server: desktop (Tauri) only. Mobile acts as client and scans the QR code. Both devices must be on the same Wi-Fi network.
 
 ---
 
@@ -194,6 +206,9 @@ npx expo run:ios
 | Encryption | AES-256-GCM (`@noble/ciphers`) · Argon2id KDF (`@noble/hashes`) |
 | On-device LLM | llama.rn (iOS / Android) |
 | On-device STT | whisper.rn (iOS / Android) |
+| LAN sync server | Axum 0.7 (Rust, desktop only) |
+| QR generation | qrcode (desktop web renderer) |
+| QR scanning | expo-camera + CameraView (iOS / Android) |
 | Similarity search | TF-IDF cosine similarity (no external service) |
 | State | Zustand + React Context |
 | Styling | React Native StyleSheet — JetBrains Mono, design tokens |
@@ -219,14 +234,18 @@ src/
     onDevice/         llama.rn context + model manager (native only)
   crypto/             Vault (AES-GCM + Argon2id), biometrics, keychain
   notes/              Note model, store, search, related notes
-  sync/               WebDAV + S3 sync, file export/import, encrypted bundle
-    providers/        webdavSync · s3Sync
+  sync/               WebDAV + S3 sync, LAN sync, file export/import, encrypted bundle
+    providers/        webdavSync · s3Sync · lanSync
   stats/              Streak, word count, sparkline, daily prompts
   design/             Design tokens, Box, T, Btn, Input components
   platform/           isTauri() / isNative() detection
   lib/                URL validation, logger, Result type
 
-src-tauri/            Rust — OS keychain IPC, system tray, file pickers
+src-tauri/            Rust — OS keychain IPC, system tray, file pickers, LAN sync server
+  src/lan_sync.rs     Axum HTTP server (GET/PUT /bundle), PIN auth, graceful shutdown
+
+plugins/              Expo config plugins (applied at EAS / prebuild time)
+  withAndroidLanNetwork.js  Sets android:usesCleartextTraffic for LAN HTTP
 ```
 
 ---
