@@ -38,18 +38,11 @@ const VAULT_CRITICAL_KEYS = new Set(['nj_vault_salt', 'nj_vault_verifier']);
 // Plaintext secrets use sessionStorage (not persisted across browser sessions).
 // All keys that may contain API credentials or sensitive config must be listed here.
 const SESSION_STORAGE_KEYS = new Set([
-  'nj_gemini_apikey',
-  'nj_claude_config',
-  'nj_custom_config',
   'nj_ollama_config',
   'nj_mlx_config',
-  'nj_ai_consent',
   'nj_ai_autoenrich',
-  'nj_gemini_model',
-  'nj_sync_config',         // WebDAV / S3 credentials — must not persist in localStorage
+  'nj_sync_config',
   'nj_sync_meta',
-  'nj_gemini_consent',      // legacy — kept for migration reads
-  'nj_gemini_autoenrich',   // legacy — kept for migration reads
 ]);
 
 const _sessionStorage: Storage | null = (() => {

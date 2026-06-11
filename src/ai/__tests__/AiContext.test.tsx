@@ -24,7 +24,6 @@ jest.mock('../onDevice/OnDeviceContext', () => ({
 
 const mockSecretGet = secureSecrets.secretGet as jest.MockedFunction<typeof secureSecrets.secretGet>;
 const mockSecretSet = secureSecrets.secretSet as jest.MockedFunction<typeof secureSecrets.secretSet>;
-const mockSecretDelete = secureSecrets.secretDelete as jest.MockedFunction<typeof secureSecrets.secretDelete>;
 const mockAskAi = aiService.askAi as jest.MockedFunction<typeof aiService.askAi>;
 
 function TestConsumer({ onValue }: { onValue: (v: ReturnType<typeof useAi>) => void }) {
@@ -46,179 +45,126 @@ describe('AiContext', () => {
     jest.clearAllMocks();
     mockSecretGet.mockResolvedValue(null);
     mockSecretSet.mockResolvedValue(undefined);
-    mockSecretDelete.mockResolvedValue(undefined);
   });
 
-  it('starts with null apiKey and no consent', async () => {
+  it('starts with no providers and hasAnyProvider false', async () => {
     let ctx!: ReturnType<typeof useAi>;
     await act(async () => {
       renderWithProvider((v) => (ctx = v));
     });
-    expect(ctx.apiKey).toBeNull();
-    expect(ctx.hasConsented).toBe(false);
+    expect(ctx.hasAnyProvider).toBe(false);
+    expect(ctx.autoEnrich).toBe(false);
   });
 
-  it('loads persisted apiKey and consent on mount', async () => {
+  it('loads persisted Ollama config on mount', async () => {
+    const storedCfg = JSON.stringify({ enabled: true, baseUrl: 'http://localhost:11434', model: 'llama3.2:3b' });
     mockSecretGet.mockImplementation(async (key) => {
-      if (key === 'nj_gemini_apikey') return 'my-key';
-      if (key === 'nj_ai_consent') return '1';
+      if (key === 'nj_ollama_config') return storedCfg;
       return null;
     });
     let ctx!: ReturnType<typeof useAi>;
     await act(async () => {
       renderWithProvider((v) => (ctx = v));
     });
-    expect(ctx.apiKey).toBe('my-key');
-    expect(ctx.hasConsented).toBe(true);
+    expect(ctx.ollamaConfig.enabled).toBe(true);
+    expect(ctx.ollamaConfig.baseUrl).toBe('http://localhost:11434');
+    expect(ctx.hasAnyProvider).toBe(true);
   });
 
-  it('setApiKey persists and updates state', async () => {
+  it('loads persisted MLX config on mount', async () => {
+    const storedCfg = JSON.stringify({ enabled: true, baseUrl: 'http://localhost:8080', model: 'mlx-model' });
+    mockSecretGet.mockImplementation(async (key) => {
+      if (key === 'nj_mlx_config') return storedCfg;
+      return null;
+    });
+    let ctx!: ReturnType<typeof useAi>;
+    await act(async () => {
+      renderWithProvider((v) => (ctx = v));
+    });
+    expect(ctx.mlxConfig.enabled).toBe(true);
+    expect(ctx.hasAnyProvider).toBe(true);
+  });
+
+  it('loads persisted autoEnrich on mount', async () => {
+    mockSecretGet.mockImplementation(async (key) => {
+      if (key === 'nj_ai_autoenrich') return '1';
+      return null;
+    });
+    let ctx!: ReturnType<typeof useAi>;
+    await act(async () => {
+      renderWithProvider((v) => (ctx = v));
+    });
+    expect(ctx.autoEnrich).toBe(true);
+  });
+
+  it('setOllamaConfig persists and updates state', async () => {
+    let ctx!: ReturnType<typeof useAi>;
+    await act(async () => {
+      renderWithProvider((v) => (ctx = v));
+    });
+    const newCfg = { enabled: true, baseUrl: 'http://localhost:11434', model: 'llama3.2:3b' };
+    await act(async () => {
+      await ctx.setOllamaConfig(newCfg);
+    });
+    expect(mockSecretSet).toHaveBeenCalledWith('nj_ollama_config', JSON.stringify(newCfg));
+    expect(ctx.ollamaConfig).toEqual(newCfg);
+  });
+
+  it('setMlxConfig persists and updates state', async () => {
+    let ctx!: ReturnType<typeof useAi>;
+    await act(async () => {
+      renderWithProvider((v) => (ctx = v));
+    });
+    const newCfg = { enabled: true, baseUrl: 'http://localhost:8080', model: 'mlx-model' };
+    await act(async () => {
+      await ctx.setMlxConfig(newCfg);
+    });
+    expect(mockSecretSet).toHaveBeenCalledWith('nj_mlx_config', JSON.stringify(newCfg));
+  });
+
+  it('setAutoEnrich persists and updates state', async () => {
     let ctx!: ReturnType<typeof useAi>;
     await act(async () => {
       renderWithProvider((v) => (ctx = v));
     });
     await act(async () => {
-      await ctx.setApiKey('new-key');
+      await ctx.setAutoEnrich(true);
     });
-    expect(mockSecretSet).toHaveBeenCalledWith('nj_gemini_apikey', 'new-key');
+    expect(mockSecretSet).toHaveBeenCalledWith('nj_ai_autoenrich', '1');
+    expect(ctx.autoEnrich).toBe(true);
   });
 
-  it('clearApiKey removes key from storage', async () => {
+  it('ask returns err when no providers configured', async () => {
     let ctx!: ReturnType<typeof useAi>;
     await act(async () => {
       renderWithProvider((v) => (ctx = v));
     });
+    let result!: Awaited<ReturnType<typeof ctx.ask>>;
     await act(async () => {
-      await ctx.clearApiKey();
-    });
-    expect(mockSecretDelete).toHaveBeenCalledWith('nj_gemini_apikey');
-  });
-
-  it('requestWithConsent returns err when no providers configured', async () => {
-    let ctx!: ReturnType<typeof useAi>;
-    await act(async () => {
-      renderWithProvider((v) => (ctx = v));
-    });
-    let result!: Awaited<ReturnType<typeof ctx.requestWithConsent>>;
-    await act(async () => {
-      result = await ctx.requestWithConsent('content', 'summarize');
+      result = await ctx.ask('content', 'summarize');
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toContain('No AI providers');
   });
 
-  it('requestWithConsent triggers pendingConsent when no consent yet', async () => {
+  it('ask calls askAi when providers are available', async () => {
+    const storedCfg = JSON.stringify({ enabled: true, baseUrl: 'https://ollama.example.com', model: 'llama3.2:3b' });
     mockSecretGet.mockImplementation(async (key) => {
-      if (key === 'nj_gemini_apikey') return 'my-key';
+      if (key === 'nj_ollama_config') return storedCfg;
       return null;
     });
-    let ctx!: ReturnType<typeof useAi>;
-    await act(async () => {
-      renderWithProvider((v) => (ctx = v));
-    });
-
-    let resolved = false;
-    act(() => {
-      ctx.requestWithConsent('note', 'summarize').then(() => (resolved = true));
-    });
-
-    // Should set pendingConsent = true but not resolve yet
-    expect(ctx.pendingConsent).toBe(true);
-    expect(resolved).toBe(false);
-  });
-
-  it('giveConsent resolves pending call and persists consent', async () => {
-    mockSecretGet.mockImplementation(async (key) => {
-      if (key === 'nj_gemini_apikey') return 'my-key';
-      return null;
-    });
-    mockAskAi.mockResolvedValue(ok('AI result'));
+    mockAskAi.mockResolvedValue(ok('AI response'));
 
     let ctx!: ReturnType<typeof useAi>;
     await act(async () => {
       renderWithProvider((v) => (ctx = v));
     });
-
-    let result: any;
-    act(() => {
-      ctx.requestWithConsent('note content', 'summarize').then((r) => (result = r));
-    });
-
+    let result!: Awaited<ReturnType<typeof ctx.ask>>;
     await act(async () => {
-      await ctx.giveConsent();
+      result = await ctx.ask('my note', 'summarize');
     });
-
-    expect(mockSecretSet).toHaveBeenCalledWith('nj_ai_consent', '1');
-    expect(result?.ok).toBe(true);
-    if (result?.ok) expect(result.value).toBe('AI result');
-  });
-
-  it('exposes cloudProviderName and hasCloudProvider when Gemini key is set', async () => {
-    mockSecretGet.mockImplementation(async (key) => {
-      if (key === 'nj_gemini_apikey') return 'my-key';
-      return null;
-    });
-    let ctx!: ReturnType<typeof useAi>;
-    await act(async () => {
-      renderWithProvider((v) => (ctx = v));
-    });
-    expect(ctx.hasCloudProvider).toBe(true);
-    expect(ctx.cloudProviderName).toBe('Google Gemini');
-  });
-
-  it('canAutoEnrich is true when no cloud providers are configured', async () => {
-    let ctx!: ReturnType<typeof useAi>;
-    await act(async () => {
-      renderWithProvider((v) => (ctx = v));
-    });
-    expect(ctx.canAutoEnrich).toBe(true);
-  });
-
-  it('canAutoEnrich is false when cloud provider exists and no consent', async () => {
-    mockSecretGet.mockImplementation(async (key) => {
-      if (key === 'nj_gemini_apikey') return 'my-key';
-      return null;
-    });
-    let ctx!: ReturnType<typeof useAi>;
-    await act(async () => {
-      renderWithProvider((v) => (ctx = v));
-    });
-    expect(ctx.hasCloudProvider).toBe(true);
-    expect(ctx.hasConsented).toBe(false);
-    expect(ctx.canAutoEnrich).toBe(false);
-  });
-
-  it('canAutoEnrich becomes true after giveConsent when cloud provider exists', async () => {
-    mockSecretGet.mockImplementation(async (key) => {
-      if (key === 'nj_gemini_apikey') return 'my-key';
-      return null;
-    });
-    mockAskAi.mockResolvedValue(ok('result'));
-
-    let ctx!: ReturnType<typeof useAi>;
-    await act(async () => {
-      renderWithProvider((v) => (ctx = v));
-    });
-    expect(ctx.canAutoEnrich).toBe(false);
-
-    act(() => { ctx.requestWithConsent('note', 'summarize'); });
-    await act(async () => { await ctx.giveConsent(); });
-
-    expect(ctx.hasConsented).toBe(true);
-    expect(ctx.canAutoEnrich).toBe(true);
-  });
-
-  it('migrates legacy nj_gemini_consent key to nj_ai_consent on load', async () => {
-    mockSecretGet.mockImplementation(async (key) => {
-      if (key === 'nj_gemini_consent') return '1';
-      return null;
-    });
-    let ctx!: ReturnType<typeof useAi>;
-    await act(async () => {
-      renderWithProvider((v) => (ctx = v));
-    });
-    expect(ctx.hasConsented).toBe(true);
-    expect(mockSecretSet).toHaveBeenCalledWith('nj_ai_consent', '1');
-    expect(mockSecretDelete).toHaveBeenCalledWith('nj_gemini_consent');
+    expect(mockAskAi).toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe('AI response');
   });
 });

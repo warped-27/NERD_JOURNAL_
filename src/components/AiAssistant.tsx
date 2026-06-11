@@ -4,7 +4,6 @@ import { useAi } from '../ai/AiContext';
 import { T } from '../design/components/T';
 import { Btn } from '../design/components/Btn';
 import { Colors, Spacing, Typography } from '../design/tokens';
-import { PrivacyConsentDialog } from './PrivacyConsentDialog';
 
 interface Props {
   noteContent: string;
@@ -21,7 +20,7 @@ export function AiAssistant({ noteContent }: Props) {
     setError(null);
     setResponse(null);
 
-    const result = await ai.requestWithConsent(noteContent, instruction.trim());
+    const result = await ai.ask(noteContent, instruction.trim());
     if (result.ok) {
       setResponse(result.value);
     } else {
@@ -33,20 +32,13 @@ export function AiAssistant({ noteContent }: Props) {
     return (
       <View style={styles.root} testID="ai-no-key">
         <T variant="muted">No AI provider configured.</T>
-        <T variant="muted">Add an API key or enable a local provider in Settings.</T>
+        <T variant="muted">Enable Ollama, MLX, or download the on-device model in Settings.</T>
       </View>
     );
   }
 
   return (
     <View style={styles.root} testID="ai-assistant">
-      <PrivacyConsentDialog
-        visible={ai.pendingConsent}
-        providerName={ai.cloudProviderName ?? 'Cloud AI'}
-        onAccept={ai.giveConsent}
-        onDecline={ai.declineConsent}
-      />
-
       <View style={styles.inputRow}>
         <TextInput
           style={styles.input}

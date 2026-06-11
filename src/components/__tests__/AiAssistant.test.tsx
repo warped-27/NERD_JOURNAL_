@@ -17,38 +17,21 @@ jest.mock('react-native', () => ({
 }));
 
 jest.mock('../../ai/AiContext', () => ({ useAi: jest.fn() }));
-jest.mock('../PrivacyConsentDialog', () => ({ PrivacyConsentDialog: () => null }));
 
 const mockUseAi = useAi as jest.MockedFunction<typeof useAi>;
 
 function makeAiCtx(overrides: Partial<ReturnType<typeof useAi>> = {}): ReturnType<typeof useAi> {
   return {
-    apiKey:             'test-key',
-    setApiKey:          jest.fn(),
-    clearApiKey:        jest.fn(),
-    model:              'gemini-2.0-flash-lite',
-    setModel:           jest.fn(),
-    hasConsented:       true,
-    giveConsent:        jest.fn(),
-    declineConsent:     jest.fn(),
-    pendingConsent:     false,
-    cloudProviderName:  'Google Gemini',
-    hasCloudProvider:   false,
-    canAutoEnrich:      true,
-    requestWithConsent: jest.fn(),
-    doComplete:         jest.fn(),
-    isLoading:          false,
-    autoEnrich:         false,
-    setAutoEnrich:      jest.fn(),
-    hasAnyProvider:     true,
-    ollamaConfig:       { enabled: false, baseUrl: 'http://localhost:11434', model: 'llama3.2:3b' },
-    mlxConfig:          { enabled: false, baseUrl: 'http://localhost:8080',  model: 'mlx-community/Llama-3.2-3B-Instruct-4bit' },
-    setOllamaConfig:    jest.fn(),
-    setMlxConfig:       jest.fn(),
-    customConfig:       { enabled: false, baseUrl: 'http://localhost:4000', model: 'gpt-4o-mini', name: 'Custom', apiKey: '' },
-    setCustomConfig:    jest.fn(),
-    claudeConfig:       { enabled: false, apiKey: '', model: 'claude-sonnet-4-6' },
-    setClaudeConfig:    jest.fn(),
+    hasAnyProvider:  true,
+    ollamaConfig:    { enabled: false, baseUrl: 'http://localhost:11434', model: 'llama3.2:3b' },
+    mlxConfig:       { enabled: false, baseUrl: 'http://localhost:8080',  model: 'mlx-community/Llama-3.2-3B-Instruct-4bit' },
+    setOllamaConfig: jest.fn(),
+    setMlxConfig:    jest.fn(),
+    ask:             jest.fn(),
+    doComplete:      jest.fn(),
+    isLoading:       false,
+    autoEnrich:      false,
+    setAutoEnrich:   jest.fn(),
     ...overrides,
   };
 }
@@ -57,7 +40,7 @@ describe('AiAssistant', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('shows no-provider message when hasAnyProvider is false', () => {
-    mockUseAi.mockReturnValue(makeAiCtx({ apiKey: null, hasAnyProvider: false }));
+    mockUseAi.mockReturnValue(makeAiCtx({ hasAnyProvider: false }));
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<AiAssistant noteContent="note" />);
@@ -66,7 +49,7 @@ describe('AiAssistant', () => {
     expect(noKey).not.toBeNull();
   });
 
-  it('shows assistant panel when apiKey is set', () => {
+  it('shows assistant panel when hasAnyProvider is true', () => {
     mockUseAi.mockReturnValue(makeAiCtx());
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -76,9 +59,9 @@ describe('AiAssistant', () => {
     expect(panel).not.toBeNull();
   });
 
-  it('calls requestWithConsent with instruction and noteContent', async () => {
-    const requestWithConsent = jest.fn().mockResolvedValue(ok('AI says hello'));
-    mockUseAi.mockReturnValue(makeAiCtx({ requestWithConsent }));
+  it('calls ask with instruction and noteContent', async () => {
+    const ask = jest.fn().mockResolvedValue(ok('AI says hello'));
+    mockUseAi.mockReturnValue(makeAiCtx({ ask }));
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<AiAssistant noteContent="My journal" />);
@@ -90,12 +73,12 @@ describe('AiAssistant', () => {
     const btn = renderer.root.findByProps({ testID: 'ai-ask-btn' });
     await act(async () => { btn.props.onPress(); });
 
-    expect(requestWithConsent).toHaveBeenCalledWith('My journal', 'summarize this');
+    expect(ask).toHaveBeenCalledWith('My journal', 'summarize this');
   });
 
   it('displays AI response on success', async () => {
-    const requestWithConsent = jest.fn().mockResolvedValue(ok('Great note!'));
-    mockUseAi.mockReturnValue(makeAiCtx({ requestWithConsent }));
+    const ask = jest.fn().mockResolvedValue(ok('Great note!'));
+    mockUseAi.mockReturnValue(makeAiCtx({ ask }));
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<AiAssistant noteContent="note" />);
@@ -111,8 +94,8 @@ describe('AiAssistant', () => {
   });
 
   it('displays error on failure', async () => {
-    const requestWithConsent = jest.fn().mockResolvedValue(err(new Error('Rate limit exceeded')));
-    mockUseAi.mockReturnValue(makeAiCtx({ requestWithConsent }));
+    const ask = jest.fn().mockResolvedValue(err(new Error('Rate limit exceeded')));
+    mockUseAi.mockReturnValue(makeAiCtx({ ask }));
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<AiAssistant noteContent="note" />);
@@ -128,8 +111,8 @@ describe('AiAssistant', () => {
   });
 
   it('does not call AI when instruction is empty', async () => {
-    const requestWithConsent = jest.fn();
-    mockUseAi.mockReturnValue(makeAiCtx({ requestWithConsent }));
+    const ask = jest.fn();
+    mockUseAi.mockReturnValue(makeAiCtx({ ask }));
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<AiAssistant noteContent="note" />);
@@ -138,6 +121,6 @@ describe('AiAssistant', () => {
     const btn = renderer.root.findByProps({ testID: 'ai-ask-btn' });
     await act(async () => { btn.props.onPress(); });
 
-    expect(requestWithConsent).not.toHaveBeenCalled();
+    expect(ask).not.toHaveBeenCalled();
   });
 });

@@ -11,6 +11,7 @@ import { newId } from '../lib/id';
 import { useAi } from '../ai/AiContext';
 import { useWhisper } from '../ai/whisper/WhisperContext';
 import { transcribeAudioWithFallback } from '../ai/transcribeAudio';
+
 import { T }   from '../design/components/T';
 import { Btn } from '../design/components/Btn';
 import { Colors, Spacing } from '../design/tokens';
@@ -97,25 +98,9 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
     if (!audioBase64 || !audioUri) return;
 
     const whisperFn = whisper.status === 'loaded' ? whisper.transcribe : null;
-    if (!whisperFn && !ai.hasConsented) {
-      setError('AI consent required. Tap ASK AI in the note editor to enable cloud AI first.');
-      return;
-    }
-    if (!whisperFn && !ai.apiKey) {
-      setError('No transcription available. Download the Whisper model or configure a cloud API key.');
-      return;
-    }
-
     setState('transcribing');
     setError('');
-    const result = await transcribeAudioWithFallback(
-      audioUri,
-      audioBase64,
-      'audio/m4a',
-      whisperFn,
-      ai.apiKey ?? '',
-      ai.model,
-    );
+    const result = await transcribeAudioWithFallback(audioUri, audioBase64, 'audio/m4a', whisperFn);
     if (result.ok) {
       const attachment: Attachment = {
         id:            newId(),
@@ -131,7 +116,7 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
       setError(result.error.message);
       setState('recorded');
     }
-  }, [audioBase64, audioUri, whisper.status, whisper.transcribe, ai.apiKey, ai.model, ai.hasConsented, duration, onAdd]);
+  }, [audioBase64, audioUri, whisper.status, whisper.transcribe, duration, onAdd]);
 
   const fmt = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;

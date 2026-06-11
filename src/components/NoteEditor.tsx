@@ -90,7 +90,7 @@ export function NoteEditor({
     setGeneratingTitle(true);
     setError('');
     try {
-      const result = await ai.requestWithConsent(content, AUTO_TITLE_PROMPT);
+      const result = await ai.ask(content, AUTO_TITLE_PROMPT);
       if (result.ok) setTitle(result.value.slice(0, 80));
       else setError(result.error.message);
     } finally {

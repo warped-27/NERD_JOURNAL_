@@ -9,18 +9,16 @@ import React, {
 } from 'react';
 import { secretGet, secretSet } from '../crypto/secureSecrets';
 import type { WebDavConfig } from './providers/webdavSync';
-import type { S3Config } from './providers/s3Sync';
 import type { ConflictInfo } from './syncRepository';
 
 const SYNC_CFG_KEY  = 'nj_sync_config';
 const SYNC_META_KEY = 'nj_sync_meta';
 
-export type SyncProviderType = 'none' | 'webdav' | 'file' | 's3';
+export type SyncProviderType = 'none' | 'webdav' | 'file';
 
 export interface SyncConfig {
   provider: SyncProviderType;
   webdav?:  WebDavConfig;
-  s3?:      S3Config;
 }
 
 interface SyncMeta {
@@ -43,7 +41,6 @@ interface SyncContextValue {
   showOnboarding: boolean;
   dismissOnboarding: () => void;
   triggerOnboarding: () => void;
-  /** Conflicts detected during the most recent sync. Cleared after user dismisses. */
   pendingConflicts:    ConflictInfo[];
   setPendingConflicts: (c: ConflictInfo[]) => void;
   clearConflicts:      () => void;
@@ -60,7 +57,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [showOnboarding,   setShowOnboarding]   = useState(false);
   const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
 
-  // Refs for the current meta values so persistence callbacks don't close over stale state.
   const lastSyncAtRef = useRef<number | null>(null);
   const lastEtagRef   = useRef<string | null>(null);
 

@@ -58,7 +58,7 @@ export default function NoteScreen() {
       // updateNote failure is surfaced by NoteEditor's onSave error handler
       throw e;
     }
-    if (ai.hasAnyProvider && ai.canAutoEnrich && ai.autoEnrich && (patch.title || patch.content)) {
+    if (ai.hasAnyProvider && ai.autoEnrich && (patch.title || patch.content)) {
       const token = { aborted: false };
       enrichAbortRef.current = token;
       enrichNote(patch.title, patch.content, ai.doComplete).then((result) => {

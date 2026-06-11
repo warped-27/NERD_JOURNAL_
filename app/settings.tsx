@@ -3,15 +3,13 @@ import { Image, View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { isNativePlatform, isTauri } from '../src/platform/detect';
 import { useVault } from '../src/crypto/VaultContext';
-import { useAi, GEMINI_MODELS } from '../src/ai/AiContext';
+import { useAi } from '../src/ai/AiContext';
 import { useOnDevice } from '../src/ai/onDevice/OnDeviceContext';
 import { useWhisper } from '../src/ai/whisper/WhisperContext';
 import { testOpenAiCompatConnection } from '../src/ai/providers/openAiCompatProvider';
-import { testClaudeConnection, CLAUDE_MODELS, DEFAULT_CLAUDE_MODEL } from '../src/ai/providers/claudeProvider';
 import { useSync } from '../src/sync/SyncContext';
 import { useNotes } from '../src/notes/NotesContext';
 import { webdavPush, webdavPull, testWebDavConnection } from '../src/sync/providers/webdavSync';
-import { s3Push, s3Pull, testS3Connection, type S3Config } from '../src/sync/providers/s3Sync';
 import { exportToFile, importFromFile } from '../src/sync/providers/fileSync';
 import {
   startLanServer, getLanSyncResult, stopLanServer,
@@ -28,13 +26,6 @@ import { Input } from '../src/design/components/Input';
 import { Btn } from '../src/design/components/Btn';
 import { Colors, Spacing } from '../src/design/tokens';
 
-const OPENAI_COMPAT_PRESETS = [
-  { label: 'OPENAI',     baseUrl: 'https://api.openai.com',    model: 'gpt-4o-mini',          name: 'OpenAI' },
-  { label: 'GROK',       baseUrl: 'https://api.x.ai',          model: 'grok-3-mini',          name: 'Grok (xAI)' },
-  { label: 'MISTRAL',    baseUrl: 'https://api.mistral.ai',    model: 'mistral-small-latest', name: 'Mistral' },
-  { label: 'PERPLEXITY', baseUrl: 'https://api.perplexity.ai', model: 'sonar',                name: 'Perplexity' },
-] as const;
-
 export default function SettingsScreen() {
   const router = useRouter();
   const vault    = useVault();
@@ -43,8 +34,6 @@ export default function SettingsScreen() {
   const whisper  = useWhisper();
   const sync     = useSync();
   const notes = useNotes();
-  const [key,   setKey]   = useState(ai.apiKey ?? '');
-  const [saved, setSaved] = useState(false);
 
   // Ollama form state
   const [ollamaEnabled, setOllamaEnabled] = useState(ai.ollamaConfig.enabled);
@@ -60,22 +49,6 @@ export default function SettingsScreen() {
   const [mlxTesting, setMlxTesting] = useState(false);
   const [mlxStatus,  setMlxStatus]  = useState('');
 
-  // Custom provider form state
-  const [customEnabled, setCustomEnabled] = useState(ai.customConfig.enabled);
-  const [customUrl,     setCustomUrl]     = useState(ai.customConfig.baseUrl);
-  const [customModel,   setCustomModel]   = useState(ai.customConfig.model);
-  const [customName,    setCustomName]    = useState(ai.customConfig.name);
-  const [customApiKey,  setCustomApiKey]  = useState(ai.customConfig.apiKey ?? '');
-  const [customTesting, setCustomTesting] = useState(false);
-  const [customStatus,  setCustomStatus]  = useState('');
-
-  // Claude form state
-  const [claudeEnabled, setClaudeEnabled] = useState(ai.claudeConfig.enabled);
-  const [claudeApiKey,  setClaudeApiKey]  = useState(ai.claudeConfig.apiKey);
-  const [claudeModel,   setClaudeModel]   = useState(ai.claudeConfig.model || DEFAULT_CLAUDE_MODEL);
-  const [claudeTesting, setClaudeTesting] = useState(false);
-  const [claudeStatus,  setClaudeStatus]  = useState('');
-
   // WebDAV form state (seeded from stored config)
   const wdCfg  = sync.config.provider === 'webdav' ? sync.config.webdav : undefined;
   const [wdUrl,      setWdUrl]      = useState(wdCfg?.url      ?? '');
@@ -84,18 +57,6 @@ export default function SettingsScreen() {
   const [wdTesting,  setWdTesting]  = useState(false);
   const [wdSyncing,  setWdSyncing]  = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
-
-  // S3 form state (seeded from stored config)
-  const s3Cfg = sync.config.provider === 's3' ? sync.config.s3 : undefined;
-  const [s3Endpoint,  setS3Endpoint]  = useState(s3Cfg?.endpoint  ?? '');
-  const [s3Region,    setS3Region]    = useState(s3Cfg?.region     ?? 'auto');
-  const [s3Bucket,    setS3Bucket]    = useState(s3Cfg?.bucket     ?? '');
-  const [s3AccessKey, setS3AccessKey] = useState(s3Cfg?.accessKey  ?? '');
-  const [s3SecretKey, setS3SecretKey] = useState(s3Cfg?.secretKey  ?? '');
-  const [s3Testing,   setS3Testing]   = useState(false);
-  const [s3Syncing,   setS3Syncing]   = useState(false);
-  // Collapsed by default unless S3 is already the active provider
-  const [s3Expanded,  setS3Expanded]  = useState(sync.config.provider === 's3');
 
   // LAN sync state
   const [lanInfo,        setLanInfo]        = useState<LanSyncInfo | null>(null);
@@ -110,17 +71,6 @@ export default function SettingsScreen() {
   // Biometric status
   const [bioLoading, setBioLoading] = useState(false);
   const [bioStatus,  setBioStatus]  = useState('');
-
-  async function handleSave() {
-    await ai.setApiKey(key);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
-
-  async function handleClear() {
-    await ai.clearApiKey();
-    setKey('');
-  }
 
   async function handleOllamaSave() {
     const url = ollamaUrl.trim();
@@ -154,44 +104,6 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleCustomSave() {
-    const url = customUrl.trim();
-    if (!url) return;
-    setCustomTesting(true);
-    setCustomStatus('');
-    try {
-      if (customEnabled) await testOpenAiCompatConnection(url, customApiKey.trim() || undefined);
-      await ai.setCustomConfig({
-        enabled: customEnabled,
-        baseUrl: url,
-        model:   customModel.trim(),
-        name:    customName.trim() || 'Custom',
-        apiKey:  customApiKey.trim(),
-      });
-      setCustomStatus(customEnabled ? 'Custom provider configured ✓' : 'Custom provider disabled ✓');
-    } catch (e) {
-      setCustomStatus(e instanceof Error ? e.message : 'Connection test failed');
-    } finally {
-      setCustomTesting(false);
-    }
-  }
-
-  async function handleClaudeSave() {
-    const key = claudeApiKey.trim();
-    if (!key) { setClaudeStatus('API key is required'); return; }
-    setClaudeTesting(true);
-    setClaudeStatus('');
-    try {
-      if (claudeEnabled) await testClaudeConnection(key, claudeModel);
-      await ai.setClaudeConfig({ enabled: claudeEnabled, apiKey: key, model: claudeModel });
-      setClaudeStatus(claudeEnabled ? 'Claude configured ✓' : 'Claude disabled ✓');
-    } catch (e) {
-      setClaudeStatus(e instanceof Error ? e.message : 'Connection test failed');
-    } finally {
-      setClaudeTesting(false);
-    }
-  }
-
   async function handleWebDavSave() {
     const url = wdUrl.trim();
     if (!url) return;
@@ -215,12 +127,10 @@ export default function SettingsScreen() {
     try {
       const cfg = sync.config.webdav;
 
-      // 1. Conditional pull — skip download if remote bundle hasn't changed
       const pullResult = await webdavPull(cfg, sync.lastEtag);
       let newEtag = sync.lastEtag;
 
       if (pullResult === null && sync.lastEtag) {
-        // 304 Not Modified — remote unchanged, nothing to merge
         setSyncStatus('Remote up to date');
       } else if (pullResult) {
         const mergeResult = await notes.importBundle(pullResult.bundle);
@@ -230,7 +140,6 @@ export default function SettingsScreen() {
         }
       }
 
-      // 2. Conditional push — skip upload if nothing changed locally since last sync
       const lastSyncAt   = sync.lastSyncAt ?? 0;
       const localChanged = !sync.lastSyncAt || (await notes.hasChangedSince(lastSyncAt));
 
@@ -259,58 +168,6 @@ export default function SettingsScreen() {
   async function handleDisconnectWebDav() {
     await sync.setConfig({ provider: 'none' });
     setSyncStatus('WebDAV disconnected');
-  }
-
-  // ─── S3 handlers ──────────────────────────────────────────────────────────
-
-  async function handleS3Save() {
-    const endpoint = s3Endpoint.trim();
-    const bucket   = s3Bucket.trim();
-    if (!endpoint || !bucket) return;
-    setS3Testing(true);
-    setSyncStatus('');
-    const cfg: S3Config = {
-      endpoint, region: s3Region.trim() || 'auto',
-      bucket, accessKey: s3AccessKey.trim(), secretKey: s3SecretKey.trim(),
-    };
-    try {
-      await testS3Connection(cfg);
-      await sync.setConfig({ provider: 's3', s3: cfg });
-      setSyncStatus('S3 configured ✓');
-    } catch (e) {
-      setSyncStatus(classifySyncError(e));
-    } finally {
-      setS3Testing(false);
-    }
-  }
-
-  async function handleS3SyncNow() {
-    if (sync.config.provider !== 's3' || !sync.config.s3) return;
-    setS3Syncing(true);
-    setSyncStatus('');
-    try {
-      const cfg    = sync.config.s3;
-      const result = await s3Pull(cfg);
-      if (result) {
-        const mergeResult = await notes.importBundle(result.bundle);
-        if (mergeResult.conflicts.length > 0) sync.setPendingConflicts(mergeResult.conflicts);
-      }
-      const merged = await notes.exportBundle();
-      await s3Push(cfg, merged);
-      sync.setLastSyncAt(Date.now());
-      setSyncStatus('S3 sync complete ✓');
-    } catch (e) {
-      const msg = classifySyncError(e);
-      setSyncStatus(msg);
-      sync.setLastError(msg);
-    } finally {
-      setS3Syncing(false);
-    }
-  }
-
-  async function handleDisconnectS3() {
-    await sync.setConfig({ provider: 'none' });
-    setSyncStatus('S3 disconnected');
   }
 
   // ─── File export/import ────────────────────────────────────────────────────
@@ -366,8 +223,6 @@ export default function SettingsScreen() {
     setLanCountdown(0);
   }, []);
 
-  // Stop the server when the 5-min countdown expires.
-  // Kept outside the setInterval updater to satisfy React's pure-updater rule.
   useEffect(() => {
     if (lanCountdown === 0 && lanInfo !== null) stopLan();
   }, [lanCountdown, lanInfo, stopLan]);
@@ -381,7 +236,6 @@ export default function SettingsScreen() {
       setLanInfo(info);
       setLanCountdown(300);
 
-      // Generate QR as data URL (desktop web renderer supports qrcode lib)
       const QRCode = await import('qrcode');
       const uri = await QRCode.toDataURL(info.url, {
         width: 200,
@@ -390,12 +244,10 @@ export default function SettingsScreen() {
       });
       setLanQrUri(uri);
 
-      // Countdown timer — pure decrement only; stopLan fires via useEffect when it hits 0.
       lanTimerRef.current = setInterval(() => {
         setLanCountdown((t) => Math.max(0, t - 1));
       }, 1000);
 
-      // Poll for result from mobile — guard prevents overlapping async executions.
       lanPollRef.current = setInterval(async () => {
         if (lanPollingRef.current) return;
         lanPollingRef.current = true;
@@ -472,55 +324,14 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* ─── API KEY ─── */}
-        <T variant="heading" style={styles.section}>AI SETTINGS</T>
-
-        <T variant="label" style={styles.label}>GEMINI API KEY</T>
-        <T variant="muted" style={styles.hint}>
-          Stored only on this device. Get a free key at aistudio.google.com
-        </T>
-
-        <Input
-          value={key}
-          onChangeText={setKey}
-          placeholder="AIza…"
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.input}
-          testID="settings-apikey"
-        />
-
-        <View style={styles.actions}>
-          <Btn
-            label={saved ? 'SAVED ✓' : 'SAVE KEY'}
-            variant="primary"
-            onPress={handleSave}
-            style={styles.btn}
-            testID="settings-save"
-          />
-          {ai.apiKey && (
-            <Btn
-              label="CLEAR KEY"
-              variant="danger"
-              onPress={handleClear}
-              style={styles.btn}
-              testID="settings-clear"
-            />
-          )}
-        </View>
-
-        {ai.apiKey && (
-          <T variant="muted" style={styles.status} testID="settings-key-status">
-            Key configured: ••••••••
-          </T>
-        )}
 
         {/* ─── AUTO-ENRICH ─── */}
-        <T variant="label" style={[styles.label, styles.modelTitle]}>AUTO-ENRICH NOTES</T>
+        <T variant="heading" style={styles.section}>AI SETTINGS</T>
+
+        <T variant="label" style={styles.label}>AUTO-ENRICH NOTES</T>
         <T variant="muted" style={styles.hint}>
           When enabled, notes are automatically tagged and summarised by AI after each save.
-          Your note content is sent to Gemini. Requires consent and a configured API key.
+          Requires a local AI provider (on-device model, Ollama, or MLX) to be active.
         </T>
         <Pressable
           style={[styles.toggleRow, ai.autoEnrich && styles.toggleRowActive]}
@@ -534,38 +345,6 @@ export default function SettingsScreen() {
             {ai.autoEnrich ? 'ENABLED' : 'DISABLED'}
           </T>
         </Pressable>
-
-        {ai.autoEnrich && ai.hasCloudProvider && onDevice.status !== 'loaded' && (
-          <T variant="error" style={styles.privacyWarning} testID="autoenrich-warning">
-            Note content is sent to {ai.cloudProviderName ?? 'cloud AI'} automatically on
-            every save. Load the on-device model to keep notes local.
-          </T>
-        )}
-
-        {/* ─── MODEL ─── */}
-        <T variant="label" style={[styles.label, styles.modelTitle]}>AI MODEL</T>
-        <T variant="muted" style={styles.hint}>
-          Flash Lite is free-tier and fastest. Flash is more capable.
-        </T>
-
-        {GEMINI_MODELS.map((m) => {
-          const active = ai.model === m.id;
-          return (
-            <Pressable
-              key={m.id}
-              style={[styles.modelRow, active && styles.modelRowActive]}
-              onPress={() => ai.setModel(m.id)}
-              testID={`model-${m.id}`}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
-            >
-              <View style={[styles.radio, active && styles.radioActive]} />
-              <T variant={active ? 'label' : 'muted'} style={styles.modelLabel}>
-                {m.label}
-              </T>
-            </Pressable>
-          );
-        })}
 
         {/* ─── ON-DEVICE ─── */}
         <T variant="heading" style={[styles.section, styles.syncHeading]}>ON-DEVICE AI</T>
@@ -587,7 +366,6 @@ export default function SettingsScreen() {
               {(onDevice.modelInfo.sizeBytes / 1e9).toFixed(1)} GB · Q4_K_M quantisation
             </T>
 
-            {/* Status badge */}
             <T
               variant={onDevice.status === 'loaded' ? 'label' : 'muted'}
               style={[styles.status, styles.sectionGap]}
@@ -605,7 +383,6 @@ export default function SettingsScreen() {
               }[onDevice.status]}
             </T>
 
-            {/* Actions */}
             <View style={styles.actions}>
               {onDevice.status === 'not-downloaded' || onDevice.status === 'download-error' ? (
                 <Btn
@@ -663,7 +440,7 @@ export default function SettingsScreen() {
         <T variant="heading" style={[styles.section, styles.syncHeading]}>LOCAL AI</T>
         <T variant="muted" style={styles.hint}>
           Run a local model on your machine or LAN. Local providers are tried first
-          before any cloud fallback. Your notes never leave the device.
+          in cascade: on-device → Ollama → MLX. Your notes never leave the device.
         </T>
 
         <T variant="label" style={styles.label}>OLLAMA (LAN / TAILSCALE)</T>
@@ -784,166 +561,6 @@ export default function SettingsScreen() {
         ) : null}
           </>
         )}
-
-        {/* ─── CUSTOM PROVIDER ─── */}
-        <T variant="label" style={[styles.label, styles.modelTitle]}>CUSTOM (LITELLM / OPENAI-COMPATIBLE)</T>
-        <T variant="muted" style={styles.hint}>
-          Point to any OpenAI-compatible endpoint. Use quick-setup presets for cloud
-          providers, or enter a custom URL for LiteLLM, vLLM, LocalAI, or similar.
-        </T>
-
-        {/* Quick-setup presets */}
-        <T variant="caption" style={styles.presetsLabel}>QUICK SETUP:</T>
-        <View style={styles.presetsRow}>
-          {OPENAI_COMPAT_PRESETS.map((p) => (
-            <Pressable
-              key={p.label}
-              style={[styles.presetChip, customUrl === p.baseUrl && styles.presetChipActive]}
-              onPress={() => { setCustomUrl(p.baseUrl); setCustomModel(p.model); setCustomName(p.name); }}
-              testID={`custom-preset-${p.label.toLowerCase()}`}
-            >
-              <T variant="kicker" style={customUrl === p.baseUrl ? styles.presetChipTextActive : styles.presetChipText}>
-                {p.label}
-              </T>
-            </Pressable>
-          ))}
-        </View>
-
-        <Input
-          value={customName}
-          onChangeText={setCustomName}
-          placeholder="Custom (LiteLLM / OpenAI-compatible)"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.input}
-          testID="custom-name"
-        />
-        <Input
-          value={customApiKey}
-          onChangeText={setCustomApiKey}
-          placeholder="API key (leave blank for local servers)"
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.input}
-          testID="custom-apikey"
-        />
-        <Pressable
-          style={[styles.toggleRow, customEnabled && styles.toggleRowActive]}
-          onPress={() => setCustomEnabled(!customEnabled)}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: customEnabled }}
-          testID="custom-toggle"
-        >
-          <View style={[styles.radio, customEnabled && styles.radioActive]} />
-          <T variant={customEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
-            {customEnabled ? 'ENABLED' : 'DISABLED'}
-          </T>
-        </Pressable>
-        <Input
-          value={customUrl}
-          onChangeText={setCustomUrl}
-          placeholder="http://localhost:4000"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          style={styles.input}
-          testID="custom-url"
-        />
-        <Input
-          value={customModel}
-          onChangeText={setCustomModel}
-          placeholder="gpt-4o-mini"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.input}
-          testID="custom-model"
-        />
-        <Btn
-          label={customTesting ? 'TESTING…' : 'SAVE CUSTOM'}
-          variant="primary"
-          onPress={handleCustomSave}
-          loading={customTesting}
-          style={[styles.btn, styles.fullBtn]}
-          testID="custom-save"
-        />
-        {customStatus ? (
-          <T
-            variant={customStatus.includes('✓') ? 'label' : 'error'}
-            style={[styles.status, styles.sectionGap]}
-            testID="custom-status"
-          >
-            {customStatus}
-          </T>
-        ) : null}
-
-        {/* ─── CLAUDE ─── */}
-        <T variant="heading" style={[styles.section, styles.syncHeading]}>CLOUD AI — CLAUDE</T>
-        <T variant="muted" style={styles.hint}>
-          Anthropic Claude — privacy-conscious cloud AI. Uses a different API format
-          from OpenAI-compatible providers. Your notes are sent to Anthropic when used.
-          Get an API key at console.anthropic.com
-        </T>
-
-        <Input
-          value={claudeApiKey}
-          onChangeText={setClaudeApiKey}
-          placeholder="sk-ant-…"
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.input}
-          testID="claude-apikey"
-        />
-
-        <Pressable
-          style={[styles.toggleRow, claudeEnabled && styles.toggleRowActive]}
-          onPress={() => setClaudeEnabled(!claudeEnabled)}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: claudeEnabled }}
-          testID="claude-toggle"
-        >
-          <View style={[styles.radio, claudeEnabled && styles.radioActive]} />
-          <T variant={claudeEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
-            {claudeEnabled ? 'ENABLED' : 'DISABLED'}
-          </T>
-        </Pressable>
-
-        <T variant="label" style={styles.label}>MODEL</T>
-        {CLAUDE_MODELS.map((m) => {
-          const active = claudeModel === m.id;
-          return (
-            <Pressable
-              key={m.id}
-              style={[styles.modelRow, active && styles.modelRowActive]}
-              onPress={() => setClaudeModel(m.id)}
-              testID={`claude-model-${m.id}`}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
-            >
-              <View style={[styles.radio, active && styles.radioActive]} />
-              <T variant={active ? 'label' : 'muted'} style={styles.modelLabel}>{m.label}</T>
-            </Pressable>
-          );
-        })}
-
-        <Btn
-          label={claudeTesting ? 'TESTING…' : 'SAVE CLAUDE'}
-          variant="primary"
-          onPress={handleClaudeSave}
-          loading={claudeTesting}
-          style={[styles.btn, styles.fullBtn]}
-          testID="claude-save"
-        />
-        {claudeStatus ? (
-          <T
-            variant={claudeStatus.includes('✓') ? 'label' : 'error'}
-            style={[styles.status, styles.sectionGap]}
-            testID="claude-status"
-          >
-            {claudeStatus}
-          </T>
-        ) : null}
 
         {/* ─── WHISPER ─── */}
         <T variant="heading" style={[styles.section, styles.syncHeading]}>LOCAL TRANSCRIPTION</T>
@@ -1236,113 +853,6 @@ export default function SettingsScreen() {
           </>
         )}
 
-        {/* S3 form — collapsed by default (advanced option) */}
-        <Pressable
-          style={styles.advancedToggle}
-          onPress={() => setS3Expanded((v) => !v)}
-          testID="sync-s3-expand"
-          accessibilityRole="button"
-          accessibilityState={{ expanded: s3Expanded }}
-        >
-          <T variant="label" style={styles.advancedToggleLabel}>
-            S3-COMPATIBLE (AWS / R2 / B2 / MINIO)
-          </T>
-          <T variant="kicker" style={styles.advancedBadge}>
-            {s3Expanded ? '▲ ADVANCED' : '▼ ADVANCED'}
-          </T>
-        </Pressable>
-
-        {s3Expanded && (
-          <>
-            <T variant="muted" style={styles.hint}>
-              Works with AWS S3, Cloudflare R2, Backblaze B2, and any S3-compatible storage.
-              Requires a bucket, endpoint URL, region, and access credentials from your
-              cloud provider. Your vault is encrypted before upload.
-            </T>
-            <Input
-              value={s3Endpoint}
-              onChangeText={setS3Endpoint}
-              placeholder="https://s3.amazonaws.com"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              style={styles.input}
-              testID="sync-s3-endpoint"
-            />
-            <Input
-              value={s3Region}
-              onChangeText={setS3Region}
-              placeholder="us-east-1 (or 'auto' for R2)"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.input}
-              testID="sync-s3-region"
-            />
-            <Input
-              value={s3Bucket}
-              onChangeText={setS3Bucket}
-              placeholder="my-journal-bucket"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.input}
-              testID="sync-s3-bucket"
-            />
-            <Input
-              value={s3AccessKey}
-              onChangeText={setS3AccessKey}
-              placeholder="access key ID"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.input}
-              testID="sync-s3-access-key"
-            />
-            <Input
-              value={s3SecretKey}
-              onChangeText={setS3SecretKey}
-              placeholder="secret access key"
-              secureTextEntry
-              style={styles.input}
-              testID="sync-s3-secret-key"
-            />
-            <View style={styles.actions}>
-              <Btn
-                label={s3Testing ? 'TESTING…' : 'TEST & SAVE'}
-                variant="primary"
-                onPress={handleS3Save}
-                loading={s3Testing}
-                style={styles.btn}
-                testID="sync-s3-save"
-              />
-              {sync.config.provider === 's3' && (
-                <Btn
-                  label={s3Syncing ? 'SYNCING…' : 'SYNC NOW'}
-                  variant="ghost"
-                  onPress={handleS3SyncNow}
-                  loading={s3Syncing}
-                  style={styles.btn}
-                  testID="sync-s3-now"
-                />
-              )}
-            </View>
-            {sync.config.provider === 's3' && (
-              <>
-                <T variant="muted" style={styles.status}>
-                  {sync.lastSyncAt
-                    ? `Last sync: ${new Date(sync.lastSyncAt).toLocaleString()}`
-                    : 'Never synced on this session'}
-                </T>
-                <Btn
-                  label="DISCONNECT S3"
-                  variant="danger"
-                  onPress={handleDisconnectS3}
-                  style={[styles.btn, styles.disconnectBtn]}
-                  testID="sync-s3-disconnect"
-                />
-              </>
-            )}
-          </>
-        )}
-
         {/* File export/import */}
         <T variant="label" style={[styles.label, styles.modelTitle]}>BACKUP FILE</T>
         <T variant="muted" style={styles.hint}>
@@ -1437,33 +947,13 @@ const styles = StyleSheet.create({
     borderColor:  Colors.greenDim,
   },
   radioActive: { backgroundColor: Colors.green, borderColor: Colors.green },
-  modelLabel:     { flex: 1 },
-  syncHeading:    { marginTop: Spacing.xl, marginBottom: Spacing.sm },
-  warnBadge:      { color: Colors.warning, fontSize: 11 },
-  warnText:       { color: Colors.warning },
-  privacyWarning: { color: Colors.error, marginBottom: Spacing.md, lineHeight: 18 },
-  disconnectBtn:  { marginTop: Spacing.xs },
-  fullBtn:        { alignSelf: 'stretch' },
-  sectionGap:     { marginBottom: Spacing.md },
-  presetsLabel:   { marginBottom: Spacing.xs, color: Colors.textMuted },
-  presetsRow: {
-    flexDirection: 'row',
-    flexWrap:      'wrap',
-    gap:           Spacing.xs,
-    marginBottom:  Spacing.md,
-  },
-  presetChip: {
-    borderWidth:       1,
-    borderColor:       Colors.border,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical:   4,
-  },
-  presetChipActive: {
-    borderColor:     Colors.green,
-    backgroundColor: Colors.greenBg,
-  },
-  presetChipText:       { color: Colors.textMuted },
-  presetChipTextActive: { color: Colors.green },
+  modelLabel:  { flex: 1 },
+  syncHeading: { marginTop: Spacing.xl, marginBottom: Spacing.sm },
+  warnBadge:   { color: Colors.warning, fontSize: 11 },
+  warnText:    { color: Colors.warning },
+  disconnectBtn: { marginTop: Spacing.xs },
+  fullBtn:     { alignSelf: 'stretch' },
+  sectionGap:  { marginBottom: Spacing.md },
   lanBox: {
     alignItems:    'center',
     gap:           Spacing.sm,
@@ -1477,17 +967,4 @@ const styles = StyleSheet.create({
   lanPin:   { letterSpacing: 2, fontSize: 18 },
   lanTimer: { color: Colors.textMuted },
   lanScanBox: { gap: Spacing.sm, marginBottom: Spacing.md },
-  advancedToggle: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'space-between',
-    paddingVertical:   Spacing.sm,
-    paddingHorizontal: Spacing.xs,
-    borderWidth:       1,
-    borderColor:       Colors.border,
-    marginTop:         Spacing.lg,
-    marginBottom:      Spacing.xs,
-  },
-  advancedToggleLabel: { flex: 1 },
-  advancedBadge:       { color: Colors.textMuted, marginLeft: Spacing.sm },
 });

@@ -9,7 +9,6 @@ import { useAi }   from '../src/ai/AiContext';
 import { Box }     from '../src/design/components/Box';
 import { T }       from '../src/design/components/T';
 import { Btn }     from '../src/design/components/Btn';
-import { PrivacyConsentDialog } from '../src/components/PrivacyConsentDialog';
 import { Colors, Spacing, Typography } from '../src/design/tokens';
 import { sanitizeInput } from '../src/ai/sanitize';
 import type { Note } from '../src/notes/Note';
@@ -121,9 +120,7 @@ export default function BrainScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input,    setInput]    = useState('');
   const [thinking, setThinking] = useState(false);
-  const [awaitingConsent, setAwaitingConsent] = useState(false);
-  const listRef          = useRef<FlatList>(null);
-  const pendingQueryRef  = useRef<string | null>(null);
+  const listRef = useRef<FlatList>(null);
 
   async function executeQuery(query: string) {
     const userMsg: Message = { id: newId(), role: 'user', text: query, sources: [], error: false };
@@ -150,39 +147,11 @@ export default function BrainScreen() {
   async function handleSend() {
     const query = input.trim();
     if (!query || thinking) return;
-
-    // If cloud providers are active and user hasn't consented yet, gate on consent first
-    if (ai.hasCloudProvider && !ai.hasConsented) {
-      pendingQueryRef.current = query;
-      setAwaitingConsent(true);
-      return;
-    }
-
     await executeQuery(query);
-  }
-
-  async function handleConsentAccept() {
-    setAwaitingConsent(false);
-    await ai.giveConsent();
-    const q = pendingQueryRef.current;
-    pendingQueryRef.current = null;
-    if (q) await executeQuery(q);
-  }
-
-  function handleConsentDecline() {
-    setAwaitingConsent(false);
-    pendingQueryRef.current = null;
   }
 
   return (
     <Box screen style={styles.root}>
-      <PrivacyConsentDialog
-        visible={awaitingConsent}
-        providerName={ai.cloudProviderName ?? 'cloud AI'}
-        contentDescription="your journal notes (up to 5 most relevant entries)"
-        onAccept={handleConsentAccept}
-        onDecline={handleConsentDecline}
-      />
       {/* Header */}
       <View style={styles.nav}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} testID="brain-back">

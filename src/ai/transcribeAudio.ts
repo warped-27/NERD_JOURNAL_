@@ -1,105 +1,21 @@
 import type { Result } from '../lib/result';
 import { ok, err } from '../lib/result';
-import { DEFAULT_GEMINI_MODEL } from './geminiService';
 
-const GEMINI_BASE    = 'https://generativelanguage.googleapis.com/v1beta/models';
-const TIMEOUT_MS     = 30_000;
-const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
-
-const RATE_WINDOW_MS = 60_000;
-const RATE_LIMIT     = 5;
-const callTimestamps: number[] = [];
-
-function checkRateLimit(): boolean {
-  const now = Date.now();
-  while (callTimestamps.length > 0 && callTimestamps[0]! < now - RATE_WINDOW_MS) {
-    callTimestamps.shift();
-  }
-  if (callTimestamps.length >= RATE_LIMIT) return false;
-  callTimestamps.push(now);
-  return true;
-}
-
-export async function transcribeAudio(
-  base64Audio: string,
-  mimeType: string,
-  apiKey: string,
-  model = DEFAULT_GEMINI_MODEL,
-): Promise<Result<string, Error>> {
-  if (!apiKey.trim()) return err(new Error('No API key configured'));
-  if (!checkRateLimit()) return err(new Error('Transcription rate limit reached (5 per minute)'));
-
-  const url = `${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method:   'POST',
-      redirect: 'manual',
-      signal:   controller.signal,
-      headers:  { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inlineData: { mimeType, data: base64Audio } },
-            { text: 'Transcribe this audio accurately. Return only the transcription text, no metadata.' },
-          ],
-        }],
-        generationConfig: { temperature: 0, maxOutputTokens: 2048 },
-      }),
-    });
-    if (response.type === 'opaqueredirect' || REDIRECT_CODES.has(response.status)) {
-      return err(new Error('Unexpected redirect — check Gemini API endpoint'));
-    }
-  } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') {
-      return err(new Error('Transcription timed out after 30s'));
-    }
-    return err(new Error(`Network error: ${e instanceof Error ? e.message : String(e)}`));
-  } finally {
-    clearTimeout(timer);
-  }
-
-  interface GeminiTranscribeResponse {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-    error?: { message: string; code?: number };
-  }
-
-  let body: GeminiTranscribeResponse;
-  try {
-    body = (await response.json()) as GeminiTranscribeResponse;
-  } catch {
-    return err(new Error(`Invalid JSON (status ${response.status})`));
-  }
-
-  if (!response.ok || body.error) {
-    return err(new Error(body.error?.message ?? `API error ${response.status}`));
-  }
-
-  const text: string | undefined = body.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) return err(new Error('Empty transcription from Gemini'));
-
-  return ok(text.trim());
-}
-
-/** Transcribes audio using a local whisper fn first, falling back to Gemini cloud. */
+/** Transcribe audio using local Whisper. Returns err if Whisper is not loaded. */
 export async function transcribeAudioWithFallback(
-  audioPath:    string,
-  base64Audio:  string,
-  mimeType:     string,
-  whisperFn:    ((path: string) => Promise<string | null>) | null,
-  apiKey:       string,
-  model?:       string,
+  audioPath:  string,
+  _base64Audio: string,
+  _mimeType:  string,
+  whisperFn:  ((path: string) => Promise<string | null>) | null,
 ): Promise<Result<string, Error>> {
-  if (whisperFn) {
-    try {
-      const text = await whisperFn(audioPath);
-      if (text) return ok(text);
-    } catch {
-      // whisper failed — fall through to cloud
-    }
+  if (!whisperFn) {
+    return err(new Error('Voice transcription requires the Whisper model. Download it in Settings → Voice.'));
   }
-  return transcribeAudio(base64Audio, mimeType, apiKey, model);
+  try {
+    const text = await whisperFn(audioPath);
+    if (text) return ok(text);
+    return err(new Error('Whisper returned empty transcription'));
+  } catch (e) {
+    return err(e instanceof Error ? e : new Error(String(e)));
+  }
 }
