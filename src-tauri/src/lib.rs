@@ -16,20 +16,15 @@ const KEYRING_SERVICE: &str = "nerd_journal";
 const ALLOWED_KEYS: &[&str] = &[
     "nj_vault_salt",
     "nj_vault_verifier",
-    "nj_gemini_apikey",
-    "nj_gemini_model",
-    "nj_ai_consent",
     "nj_ai_autoenrich",
     "nj_ollama_config",
     "nj_mlx_config",
-    "nj_custom_config",
-    "nj_claude_config",
     "nj_sync_config",
     "nj_sync_meta",
     "nj_device_id",
     "nj_ondevice_model",
+    "nj_biometric_enabled",
     // Legacy keys kept for one-time migration reads/deletes
-    "nj_gemini_consent",
     "nj_gemini_autoenrich",
 ];
 

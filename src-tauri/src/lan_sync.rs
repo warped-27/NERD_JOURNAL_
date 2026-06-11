@@ -1,6 +1,6 @@
 use axum::{
     body::Bytes,
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{HeaderMap, StatusCode},
     routing::{get, put},
     Router,
@@ -12,13 +12,17 @@ use tokio::{sync::oneshot, time::Duration};
 
 const PIN_LEN: usize = 6;
 const TIMEOUT_SECS: u64 = 300; // 5 minutes
+const MAX_FAILED_PINS: u8 = 10;
+// 512 MiB — mirrors MAX_BUNDLE_BYTES in SyncBundle.ts
+const MAX_BODY_BYTES: usize = 512 * 1024 * 1024;
 
 // ── Shared HTTP state ─────────────────────────────────────────────────────────
 
 struct SyncState {
-    pin:          String,
-    local_bundle: String,
-    received:     Mutex<Option<String>>,
+    pin:             String,
+    local_bundle:    String,
+    received:        Mutex<Option<String>>,
+    failed_attempts: Mutex<u8>,
 }
 
 // ── Managed Tauri state ───────────────────────────────────────────────────────
@@ -39,21 +43,44 @@ impl LanSyncManager {
 
 // ── HTTP handlers ─────────────────────────────────────────────────────────────
 
+/// Constant-time PIN comparison — prevents timing-oracle attacks on the local network.
 fn verify_pin(headers: &HeaderMap, expected: &str) -> bool {
-    headers
-        .get("x-lan-pin")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v == expected)
-        .unwrap_or(false)
+    let Some(provided) = headers.get("x-lan-pin").and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let exp = expected.as_bytes();
+    let got = provided.as_bytes();
+    if got.len() != exp.len() {
+        return false;
+    }
+    let mut differ: u8 = 0;
+    for (a, b) in got.iter().zip(exp.iter()) {
+        differ |= a ^ b;
+    }
+    differ == 0
+}
+
+fn check_pin_with_rate_limit(state: &SyncState, headers: &HeaderMap) -> Result<(), StatusCode> {
+    {
+        let fails = state.failed_attempts.lock().unwrap();
+        if *fails >= MAX_FAILED_PINS {
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+    }
+    if verify_pin(headers, &state.pin) {
+        *state.failed_attempts.lock().unwrap() = 0;
+        Ok(())
+    } else {
+        *state.failed_attempts.lock().unwrap() += 1;
+        Err(StatusCode::UNAUTHORIZED)
+    }
 }
 
 async fn handle_get(
     State(state): State<Arc<SyncState>>,
     headers: HeaderMap,
 ) -> Result<String, StatusCode> {
-    if !verify_pin(&headers, &state.pin) {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    check_pin_with_rate_limit(&state, &headers)?;
     Ok(state.local_bundle.clone())
 }
 
@@ -62,8 +89,8 @@ async fn handle_put(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    if !verify_pin(&headers, &state.pin) {
-        return StatusCode::UNAUTHORIZED;
+    if let Err(code) = check_pin_with_rate_limit(&state, &headers) {
+        return code;
     }
     let Ok(s) = String::from_utf8(body.into()) else {
         return StatusCode::BAD_REQUEST;
@@ -134,9 +161,10 @@ pub async fn lan_sync_start(
     };
 
     let sync_state = Arc::new(SyncState {
-        pin:          pin.clone(),
-        local_bundle: bundle_json,
-        received:     Mutex::new(None),
+        pin:             pin.clone(),
+        local_bundle:    bundle_json,
+        received:        Mutex::new(None),
+        failed_attempts: Mutex::new(0),
     });
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -146,6 +174,7 @@ pub async fn lan_sync_start(
     tauri::async_runtime::spawn(async move {
         let app = Router::new()
             .route("/bundle", get(handle_get).put(handle_put))
+            .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
             .with_state(server_state);
 
         let _ = axum::serve(listener, app)

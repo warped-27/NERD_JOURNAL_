@@ -91,9 +91,13 @@ export async function testOpenAiCompatConnection(baseUrl: string, apiKey?: strin
   let response: Response;
   try {
     response = await fetch(`${base}/v1/models`, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-      signal:  controller.signal,
+      redirect: 'manual',
+      headers:  apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal:   controller.signal,
     });
+    if (response.type === 'opaqueredirect' || REDIRECT_CODES.has(response.status)) {
+      throw new Error('Unexpected redirect — check base URL');
+    }
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
       throw new Error('Server did not respond within 30s');

@@ -3,6 +3,7 @@ import { View, Pressable, Image, StyleSheet, Linking } from 'react-native';
 import type { Attachment } from '../notes/Note';
 import { T } from '../design/components/T';
 import { Colors, Spacing, Typography } from '../design/tokens';
+import { assertSafeUrl } from '../lib/urlValidation';
 
 interface Props {
   attachments: Attachment[];
@@ -78,7 +79,14 @@ export function AttachmentList({ attachments, onRemove }: Props) {
           <Pressable
             style={styles.labelWrap}
             onPress={() => {
-              if (a.type === 'link' && a.url) Linking.openURL(a.url);
+              if (a.type === 'link' && a.url) {
+                try {
+                  assertSafeUrl(a.url);
+                  void Linking.openURL(a.url);
+                } catch {
+                  // URL failed safety check — silently ignore to avoid opening dangerous schemes
+                }
+              }
             }}
             testID={`attachment-label-${a.id}`}
           >

@@ -23,7 +23,9 @@ const UNICODE_SPACES = /[  -   　]/g;
 export function sanitizeInput(text: string): string {
   if (!text) return '';
 
-  let s = text;
+  // NFKC normalization folds lookalike Unicode characters (e.g. dotless-ı, full-width
+  // letters) into their ASCII equivalents before injection patterns are tested.
+  let s = text.normalize('NFKC');
 
   // Strip zero-width and invisible Unicode characters before truncating so they
   // cannot be used to pad injection content past the character limit.

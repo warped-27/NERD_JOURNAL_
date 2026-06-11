@@ -13,6 +13,15 @@ function isLocalhost(hostname: string): boolean {
 }
 
 /**
+ * Returns true for link-local addresses (169.254.0.0/16).
+ * These are used by cloud metadata services (AWS 169.254.169.254, Azure 169.254.169.254)
+ * and must never be reachable as user-configured endpoints.
+ */
+function isLinkLocal(hostname: string): boolean {
+  return /^169\.254\.\d{1,3}\.\d{1,3}$/.test(hostname);
+}
+
+/**
  * Validates that a URL is safe for provider/sync network calls.
  * Throws with a user-readable message if the URL is unsafe.
  *
@@ -20,6 +29,8 @@ function isLocalhost(hostname: string): boolean {
  *  - scheme must be http or https
  *  - http is only permitted for loopback addresses (localhost, 127.x.x.x/8, ::1, 0.0.0.0)
  *    to prevent note content from being sent in plaintext over the network
+ *  - link-local addresses (169.254.x.x) are always blocked to prevent SSRF against
+ *    cloud metadata services (AWS IMDSv1/v2, Azure IMDS)
  */
 export function assertSafeUrl(url: string): void {
   let parsed: URL;
@@ -32,6 +43,12 @@ export function assertSafeUrl(url: string): void {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error(
       `URL scheme "${parsed.protocol.replace(':', '')}" is not allowed — use http or https`,
+    );
+  }
+
+  if (isLinkLocal(parsed.hostname)) {
+    throw new Error(
+      'Link-local addresses (169.254.x.x) are not allowed — this range is reserved for cloud metadata services.',
     );
   }
 

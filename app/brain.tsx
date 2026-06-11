@@ -145,7 +145,7 @@ export default function BrainScreen() {
   }
 
   async function handleSend() {
-    const query = input.trim();
+    const query = sanitizeInput(input.trim());
     if (!query || thinking) return;
     await executeQuery(query);
   }

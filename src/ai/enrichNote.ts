@@ -22,7 +22,7 @@ function buildPrompt(title: string, content: string): string {
   return (
     `${ENRICH_SYSTEM}\n\n` +
     `Note title: "${title}"\n` +
-    `Note content:\n"""\n${content}\n"""\n\n` +
+    `Note content:\n"""\n${content.replaceAll('"""', "''\"")}\n"""\n\n` +
     'Return this exact JSON shape:\n' +
     '{\n' +
     '  "tags": ["tag1","tag2","tag3"],\n' +

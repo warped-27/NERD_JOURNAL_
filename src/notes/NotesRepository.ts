@@ -4,16 +4,37 @@ import { encrypt, decrypt } from '../crypto/cipher';
 import { toBase64url, fromBase64url, toUtf8, fromUtf8 } from '../crypto/encoding';
 import { logger } from '../lib/logger';
 
+const VALID_ATTACHMENT_TYPES = new Set(['image', 'file', 'link', 'voice']);
+
+function isValidAttachment(a: unknown): boolean {
+  if (typeof a !== 'object' || a === null) return false;
+  const o = a as Record<string, unknown>;
+  if (typeof o['id'] !== 'string' || !o['id']) return false;
+  if (!VALID_ATTACHMENT_TYPES.has(o['type'] as string)) return false;
+  // For link attachments, url must be http/https if present
+  if (o['type'] === 'link' && o['url'] != null) {
+    const u = o['url'];
+    if (typeof u !== 'string') return false;
+    if (!/^https?:\/\//i.test(u)) return false;
+  }
+  return true;
+}
+
 function isValidNoteShape(n: unknown): boolean {
   if (typeof n !== 'object' || n === null) return false;
   const o = n as Record<string, unknown>;
-  return (
-    typeof o['id'] === 'string' && o['id'].length > 0 &&
-    typeof o['title'] === 'string' &&
-    typeof o['content'] === 'string' &&
-    typeof o['createdAt'] === 'number' &&
-    typeof o['updatedAt'] === 'number'
-  );
+  if (
+    typeof o['id'] !== 'string' || !o['id'] ||
+    typeof o['title'] !== 'string' ||
+    typeof o['content'] !== 'string' ||
+    typeof o['createdAt'] !== 'number' ||
+    typeof o['updatedAt'] !== 'number'
+  ) return false;
+  if (o['attachments'] != null) {
+    if (!Array.isArray(o['attachments'])) return false;
+    if (!(o['attachments'] as unknown[]).every(isValidAttachment)) return false;
+  }
+  return true;
 }
 
 export class NotesRepository {
