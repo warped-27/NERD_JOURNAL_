@@ -15,7 +15,8 @@ There is no central database, no subscription, no proxy server. Your notes are e
 |---|---|
 | **Zero-Knowledge Encryption** | AES-256-GCM with a key derived via Argon2id from your master password. Notes never leave the device in plain text. |
 | **Local-first AI** | Inference runs on-device (llama.rn) or on your own hardware (Ollama / Jan / LM Studio / MLX) — no cloud, no API keys, no consent dialogs. |
-| **BYO-Cloud** | Sync only to a server you control: WebDAV, Nextcloud, ownCloud, or an encrypted file you move manually. |
+| **LAN Sync** | Sync instantly between your devices over Wi-Fi — no internet, no account, no third-party server. One QR code, one PIN, done. |
+| **BYO-Cloud** | When you want remote persistence, bring your own server: WebDAV, Nextcloud, ownCloud, or an encrypted file you move manually. |
 
 ---
 
