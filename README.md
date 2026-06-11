@@ -14,8 +14,8 @@ There is no central database, no subscription, no proxy server. Your notes are e
 | Pillar | What it means |
 |---|---|
 | **Zero-Knowledge Encryption** | AES-256-GCM with a key derived via Argon2id from your master password. Notes never leave the device in plain text. |
-| **BYOK** (Bring Your Own Key) | Direct API calls to the AI provider of your choice — no middleman, no quota sharing. |
-| **BYO-Cloud** | Sync only to the server you control: WebDAV, Nextcloud, ownCloud, S3-compatible storage (AWS S3, Cloudflare R2, Backblaze B2, MinIO), or an encrypted file you move manually. |
+| **Local-first AI** | Inference runs on-device (llama.rn) or on your own hardware (Ollama / Jan / LM Studio / MLX) — no cloud, no API keys, no consent dialogs. |
+| **BYO-Cloud** | Sync only to a server you control: WebDAV, Nextcloud, ownCloud, or an encrypted file you move manually. |
 
 ---
 
@@ -36,44 +36,25 @@ There is no central database, no subscription, no proxy server. Your notes are e
 - Daily writing prompts
 - Markdown export with YAML frontmatter (via system share sheet)
 
-### AI — Provider Cascade
+### AI — Local-First Cascade
 
 AI requests flow through a local-first cascade — the first available provider wins:
 
 ```
-llama.rn (on-device) → Ollama → MLX → Custom → Claude → Gemini
+llama.rn (on-device) → Ollama / Jan / LM Studio → MLX
 ```
 
-| Provider | Privacy level | Platform | Notes |
+| Provider | Privacy | Platform | Notes |
 |---|---|---|---|
-| **llama.rn** | 🟢 On-device | iOS · Android | Gemma 3 4B Q4_K_M — fully offline, no consent needed |
-| **Ollama** | 🟡 Local LAN | Desktop · Mobile (LAN IP) | Any Ollama model, e.g. `llama3.2:3b` |
-| **MLX** | 🟡 Local | macOS Apple Silicon | `mlx_lm.server`, any MLX-compatible model |
-| **OpenAI** | 🔴 Cloud (BYOK) | All | `api.openai.com` — quick-setup preset in Settings |
-| **Grok (xAI)** | 🔴 Cloud (BYOK) | All | `api.x.ai` — quick-setup preset in Settings |
-| **Mistral** | 🔴 Cloud (BYOK) | All | `api.mistral.ai` — quick-setup preset in Settings |
-| **Perplexity** | 🔴 Cloud (BYOK) | All | `api.perplexity.ai` — quick-setup preset in Settings |
-| **Custom** | 🔴/🟡 BYOK | All | Any OpenAI-compatible endpoint |
-| **Claude (Anthropic)** | 🔴 Cloud (BYOK) | All | Fable 5 · Opus 4.8 · Sonnet 4.6 · Haiku 4.5 |
-| **Gemini** | 🔴 Cloud (BYOK) | All | Default cloud fallback — Flash Lite, Flash, 2.5 variants |
+| **llama.rn** | 🟢 On-device | iOS · Android | Gemma 3 4B Q4_K_M — fully offline |
+| **Ollama** | 🟢 Local | Desktop · Mobile (LAN IP) | Any Ollama model, e.g. `llama3.2:3b` |
+| **Jan** | 🟢 Local | Desktop · Mobile (LAN IP) | OpenAI-compatible — `localhost:1337` by default |
+| **LM Studio** | 🟢 Local | Desktop · Mobile (LAN IP) | OpenAI-compatible — `localhost:1234` by default |
+| **MLX** | 🟢 Local | macOS Apple Silicon | `mlx_lm.server`, any MLX-compatible model |
 
-**Privacy levels:**
-- 🟢 **On-device** — inference runs locally; no network, no consent dialog
-- 🟡 **Local** — request stays on your machine or LAN; no consent dialog
-- 🔴 **Cloud** — note text is decrypted in memory and sent over HTTPS; one-time consent required
+All providers are **local-only** — note content never leaves your machine or LAN. No API keys. No consent dialogs. No cloud calls.
 
-### AI Privacy & Consent
-
-When the active cascade includes a cloud provider, a **mandatory consent dialog** appears on first use. It names the specific provider (e.g. "Anthropic Claude"), explains that note content is decrypted in memory before transmission, and confirms that all calls use HTTPS. The consent is stored locally and covers all configured cloud providers. It can be revoked at any time by removing cloud API keys from Settings.
-
-**Auto-enrichment** (background tagging/summarisation on save) respects the same rules: if only local/on-device providers are configured, it runs without any consent prompt; cloud calls are blocked until the user explicitly consents.
-
-**Second Brain (RAG)** also gates on consent: if cloud providers are configured and consent has not been given, the consent dialog appears before any note content is sent. The dialog describes exactly what is being sent ("your journal notes — up to 5 most relevant entries").
-
-**All network calls to cloud AI providers include:**
-- 30-second timeout with `AbortController`
-- `redirect: 'manual'` to prevent credential leakage on unexpected redirects
-- HTTPS enforced — HTTP is only permitted for loopback addresses (localhost, 127.0.0.1)
+The Ollama slot in Settings accepts any OpenAI-compatible local runtime: Ollama, Jan, LM Studio, or any other server that speaks the `/v1/chat/completions` API.
 
 ### Voice Transcription (Whisper)
 - **On-device** (iOS / Android): Whisper Small (244 MB, downloaded once from HuggingFace `ggerganov/whisper.cpp`) — audio never leaves the device, works fully offline
@@ -88,7 +69,6 @@ Ask questions across your entire note collection via the dedicated **Second Brai
 |---|---|
 | **LAN Sync** | One-command sync between desktop and mobile on the same Wi-Fi — no internet, no account |
 | **WebDAV / Nextcloud / ownCloud** | Push/pull of encrypted bundle, ETag-based conditional sync (skips download if unchanged) |
-| **S3-compatible storage** | AWS S3, Cloudflare R2, Backblaze B2, MinIO — SigV4 signed requests, ETag conditional GET |
 | **File backup** | Export/import encrypted `.njvault` bundle manually |
 
 All sync methods:
@@ -105,7 +85,7 @@ All sync methods:
 3. The mobile pulls the desktop's encrypted bundle, merges it locally, then pushes the merged result back. Both devices end up in sync in a single round-trip.
 4. The server shuts down automatically after 5 minutes or as soon as the exchange completes.
 
-**Security:** the bundle is AES-256-GCM encrypted at the application layer before it travels over HTTP. The one-time PIN prevents any other device on the same network from connecting. On iOS, `NSAllowsLocalNetworking` permits HTTP to LAN addresses. On Android, `android:usesCleartextTraffic` is set via a build-time config plugin — justified by application-layer encryption. The PIN is rejected if a bundle was already received (prevents concurrent PUT races). Any QR code pointing to a non-RFC-1918 address is rejected before a single byte is sent (SSRF guard).
+**Security:** the bundle is AES-256-GCM encrypted at the application layer before it travels over HTTP. The one-time PIN uses constant-time comparison and is locked after 10 failed attempts (429). A 512 MiB body-size cap on the Axum router prevents RAM exhaustion. On iOS, `NSAllowsLocalNetworking` permits HTTP to LAN addresses. On Android, `android:usesCleartextTraffic` is set via a build-time config plugin — justified by application-layer encryption. Any QR code pointing to a non-RFC-1918 address is rejected before a single byte is sent (SSRF guard).
 
 ### Security
 - Vault unlock: master password (always) + optional Face ID / Fingerprint (iOS / Android)
@@ -114,9 +94,12 @@ All sync methods:
 - Derived key zeroed in memory immediately on lock or on any exception path
 - `toBase64url` uses chunk-based encoding — no stack overflow on large notes or attachments
 - Sync credentials (`nj_sync_config`) stored in sessionStorage on web — not persisted across browser restarts
-- Content Security Policy locks outbound connections to known AI/sync endpoints
-- All S3 and WebDAV fetch calls use `redirect: 'manual'` to prevent credential forwarding
-- LAN sync: SSRF guard rejects QR codes pointing outside RFC-1918 / loopback; one-time PIN; 409 on concurrent PUT
+- Content Security Policy locks outbound connections to model-download and local endpoints only
+- All WebDAV fetch calls use `redirect: 'manual'` to prevent credential forwarding
+- LAN sync: SSRF guard rejects QR codes pointing outside RFC-1918 / loopback; constant-time PIN; rate-limited to 10 attempts; 512 MiB body cap; 409 on concurrent PUT
+- Link attachments from synced bundles are validated against `http/https` scheme before `Linking.openURL`
+- Attachment shapes validated after decryption (type enum + link URL scheme check)
+- Prompt injection sanitisation: NFKC normalisation, zero-width char stripping, pattern removal before AI calls
 
 ---
 
@@ -133,7 +116,7 @@ All sync methods:
 > The vault requires an OS keychain (Tauri) or device secure enclave (iOS / Android) to store the KDF salt and verifier. Browsers have neither: writing these keys via `webSet()` throws immediately with *"Vault storage requires a secure keychain"*. The web build exists for UI development only — the app is unusable without an unlocked vault.
 
 > **Other platform notes:**
-> - Ollama on mobile: `localhost` refers to the phone itself. Use the computer's LAN IP (e.g. `http://192.168.1.x:11434`) or Tailscale.
+> - Ollama / Jan / LM Studio on mobile: `localhost` refers to the phone itself. Use the computer's LAN IP (e.g. `http://192.168.1.x:11434`) or Tailscale.
 > - MLX: macOS Apple Silicon only. Not available on iOS, Android, or Intel Macs.
 > - Whisper STT: iOS and Android native builds only.
 > - LAN sync server: desktop (Tauri) only. Mobile acts as client and scans the QR code. Both devices must be on the same Wi-Fi network.
@@ -204,7 +187,7 @@ npx expo run:ios
 | Similarity search | TF-IDF cosine similarity (no external service) |
 | State | Zustand + React Context |
 | Styling | React Native StyleSheet — JetBrains Mono, design tokens |
-| Tests | Jest + jest-expo (371 tests, 50 suites) |
+| Tests | Jest + jest-expo (343 tests, 46 suites) |
 | Type checking | TypeScript 6 (strict) |
 
 ---
@@ -220,21 +203,20 @@ app/                  Expo Router screens
 
 src/
   ai/                 AI providers, RAG, enrichment, TF-IDF
-    providers/        gemini · openAiCompat · claude · llamaRn
-                      Each provider declares privacyLevel + displayName
+    providers/        openAiCompat · llamaRn
     whisper/          Whisper STT context + model manager (native only)
     onDevice/         llama.rn context + model manager (native only)
   crypto/             Vault (AES-GCM + Argon2id), biometrics, keychain
   notes/              Note model, store, search, related notes
-  sync/               WebDAV + S3 sync, LAN sync, file export/import, encrypted bundle
-    providers/        webdavSync · s3Sync · lanSync
+  sync/               WebDAV sync, LAN sync, file export/import, encrypted bundle
+    providers/        webdavSync · lanSync
   stats/              Streak, word count, sparkline, daily prompts
   design/             Design tokens, Box, T, Btn, Input components
   platform/           isTauri() / isNative() detection
   lib/                URL validation, logger, Result type
 
 src-tauri/            Rust — OS keychain IPC, system tray, file pickers, LAN sync server
-  src/lan_sync.rs     Axum HTTP server (GET/PUT /bundle), PIN auth, graceful shutdown
+  src/lan_sync.rs     Axum HTTP server (GET/PUT /bundle), constant-time PIN, rate-limit, graceful shutdown
 
 plugins/              Expo config plugins (applied at EAS / prebuild time)
   withAndroidLanNetwork.js  Sets android:usesCleartextTraffic for LAN HTTP
@@ -248,7 +230,7 @@ plugins/              Expo config plugins (applied at EAS / prebuild time)
 npm run web           # Expo web dev server (UI development only — vault unusable in browser)
 npm run dev:tauri     # Tauri desktop dev mode
 npm run build:tauri   # Tauri production build
-npm test              # Jest (371 tests, 50 suites)
+npm test              # Jest (343 tests, 46 suites)
 npm run typecheck     # tsc --noEmit
 npm run lint          # ESLint
 ```
