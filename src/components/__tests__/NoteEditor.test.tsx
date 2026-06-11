@@ -7,11 +7,13 @@ jest.mock('../AttachmentPicker', () => ({ AttachmentPicker: () => null }));
 jest.mock('../AttachmentList',   () => ({ AttachmentList:   () => null }));
 jest.mock('../../ai/AiContext', () => ({
   useAi: () => ({
-    apiKey: null,
-    requestWithConsent: jest.fn(),
-    isLoading: false,
-    pendingConsent: false,
-    giveConsent: jest.fn(),
+    ask:            jest.fn().mockResolvedValue({ ok: false, error: new Error('no provider') }),
+    isLoading:      false,
+    hasAnyProvider: false,
+    ollamaConfig:   { enabled: false, baseUrl: 'http://localhost:11434', model: '' },
+    mlxConfig:      { enabled: false, baseUrl: 'http://localhost:8080',  model: '' },
+    autoEnrich:     false,
+    setAutoEnrich:  jest.fn(),
   }),
 }));
 

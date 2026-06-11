@@ -63,7 +63,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     secretGet(SYNC_CFG_KEY).then((raw) => {
       if (!raw) return;
-      try { setConfigState(JSON.parse(raw) as SyncConfig); }
+      try {
+        const parsed = JSON.parse(raw) as SyncConfig;
+        const validProviders: SyncProviderType[] = ['none', 'webdav', 'file'];
+        setConfigState(validProviders.includes(parsed.provider) ? parsed : { provider: 'none' });
+      }
       catch { console.warn('[SyncContext] failed to parse stored sync config'); }
     });
     secretGet(SYNC_META_KEY).then((raw) => {

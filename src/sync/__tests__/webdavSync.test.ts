@@ -17,7 +17,7 @@ beforeEach(() => mockFetch.mockClear());
 
 describe('webdavPush', () => {
   it('sends PUT to correct URL with auth header', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true, status: 201 });
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 201, headers: { get: () => null } });
     await webdavPush(cfg, bundle);
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://dav.example.com/files/user/nerd_journal_.njvault');

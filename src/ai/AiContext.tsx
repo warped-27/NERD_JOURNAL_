@@ -93,12 +93,18 @@ export function AiProvider({ children }: { children: ReactNode }) {
 
   // ── Load persisted settings ───────────────────────────────────────────────
   const loadSettings = useCallback(async () => {
-    const [autoEnrichSaved, ollamaSaved, mlxSaved] = await Promise.all([
+    const [autoEnrichSaved, ollamaSaved, mlxSaved, legacyAutoEnrich] = await Promise.all([
       secretGet(AI_AUTOENRICH_KEY),
       secretGet(AI_OLLAMA_CONFIG_KEY),
       secretGet(AI_MLX_CONFIG_KEY),
+      secretGet('nj_gemini_autoenrich'),
     ]);
-    setAutoEnrichState(autoEnrichSaved === '1');
+    // Migrate legacy key written by older versions
+    const autoEnrichValue = autoEnrichSaved ?? legacyAutoEnrich;
+    setAutoEnrichState(autoEnrichValue === '1');
+    if (autoEnrichSaved === null && legacyAutoEnrich !== null) {
+      void secretSet(AI_AUTOENRICH_KEY, legacyAutoEnrich);
+    }
     if (ollamaSaved) {
       try { setOllamaConfigState(JSON.parse(ollamaSaved) as OllamaConfig); } catch {}
     }

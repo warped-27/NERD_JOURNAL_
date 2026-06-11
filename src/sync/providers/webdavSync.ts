@@ -56,7 +56,7 @@ function basicAuth(username: string, password: string): string {
   return 'Basic ' + btoa(`${username}:${password}`);
 }
 
-export async function webdavPush(config: WebDavConfig, bundle: SyncBundle): Promise<void> {
+export async function webdavPush(config: WebDavConfig, bundle: SyncBundle): Promise<string | null> {
   assertSafeUrl(config.url);
   const res = await wfetch(bundleUrl(config), {
     method:  'PUT',
@@ -67,6 +67,7 @@ export async function webdavPush(config: WebDavConfig, bundle: SyncBundle): Prom
     body: serializeBundle(bundle),
   });
   if (!res.ok) throw new Error(`WebDAV PUT failed: ${res.status} ${res.statusText}`);
+  return res.headers.get('ETag');
 }
 
 /**

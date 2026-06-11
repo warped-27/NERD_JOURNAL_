@@ -145,7 +145,8 @@ export default function SettingsScreen() {
 
       if (localChanged) {
         const merged = await notes.exportBundle();
-        await webdavPush(cfg, merged);
+        const pushEtag = await webdavPush(cfg, merged);
+        if (pushEtag) newEtag = pushEtag;
         setSyncStatus('Sync complete ✓');
       } else if (!pullResult || !pullResult.bundle) {
         setSyncStatus('Already up to date ✓');
@@ -153,9 +154,8 @@ export default function SettingsScreen() {
         setSyncStatus('Sync complete ✓');
       }
 
-      const now = Date.now();
-      sync.setLastSyncAt(now);
-      if (newEtag !== sync.lastEtag) sync.setLastEtag(newEtag);
+      sync.setLastSyncAt(Date.now());
+      sync.setLastEtag(newEtag);
     } catch (e) {
       const errMsg = classifySyncError(e);
       setSyncStatus(errMsg);
@@ -255,16 +255,20 @@ export default function SettingsScreen() {
           const result = await getLanSyncResult();
           if (result) {
             stopLan();
-            const { parseBundle } = await import('../src/sync/SyncBundle');
-            const remoteBundle = parseBundle(result);
-            const mergeResult  = await notes.importBundle(remoteBundle);
-            if (mergeResult.conflicts.length > 0) {
-              sync.setPendingConflicts(mergeResult.conflicts);
+            try {
+              const { parseBundle } = await import('../src/sync/SyncBundle');
+              const remoteBundle = parseBundle(result);
+              const mergeResult  = await notes.importBundle(remoteBundle);
+              if (mergeResult.conflicts.length > 0) {
+                sync.setPendingConflicts(mergeResult.conflicts);
+              }
+              sync.setLastSyncAt(Date.now());
+              setLanStatus(`LAN sync complete ✓ — ${mergeResult.imported} note(s) updated`);
+            } catch (e) {
+              setLanStatus(e instanceof Error ? e.message : 'LAN sync: failed to process bundle');
             }
-            sync.setLastSyncAt(Date.now());
-            setLanStatus(`LAN sync complete ✓ — ${mergeResult.imported} note(s) updated`);
           }
-        } catch { /* ignore transient poll errors */ }
+        } catch { /* ignore transient getLanSyncResult network errors */ }
         finally { lanPollingRef.current = false; }
       }, 1000);
     } catch (e) {
