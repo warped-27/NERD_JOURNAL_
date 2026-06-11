@@ -68,6 +68,8 @@ When the active cascade includes a cloud provider, a **mandatory consent dialog*
 
 **Auto-enrichment** (background tagging/summarisation on save) respects the same rules: if only local/on-device providers are configured, it runs without any consent prompt; cloud calls are blocked until the user explicitly consents.
 
+**Second Brain (RAG)** also gates on consent: if cloud providers are configured and consent has not been given, the consent dialog appears before any note content is sent. The dialog describes exactly what is being sent ("your journal notes — up to 5 most relevant entries").
+
 **All network calls to cloud AI providers include:**
 - 30-second timeout with `AbortController`
 - `redirect: 'manual'` to prevent credential leakage on unexpected redirects
