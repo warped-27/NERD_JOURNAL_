@@ -24,6 +24,7 @@ const ALLOWED_KEYS: &[&str] = &[
     "nj_device_id",
     "nj_ondevice_model",
     "nj_biometric_enabled",
+    "nj_whisper_server_config",
     // Legacy keys kept for one-time migration reads/deletes
     "nj_gemini_autoenrich",
 ];

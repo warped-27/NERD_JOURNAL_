@@ -11,6 +11,7 @@ import { newId } from '../lib/id';
 import { useAi } from '../ai/AiContext';
 import { useWhisper } from '../ai/whisper/WhisperContext';
 import { transcribeAudioWithFallback } from '../ai/transcribeAudio';
+import { isTauri } from '../platform/detect';
 
 import { T }   from '../design/components/T';
 import { Btn } from '../design/components/Btn';
@@ -28,11 +29,12 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
   const whisper = useWhisper();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
-  const [state,       setState]       = useState<RecordState>('idle');
-  const [duration,    setDuration]    = useState(0);
-  const [audioBase64, setAudioBase64] = useState<string | null>(null);
-  const [audioUri,    setAudioUri]    = useState<string | null>(null);
-  const [error,       setError]       = useState('');
+  const [state,         setState]         = useState<RecordState>('idle');
+  const [duration,      setDuration]      = useState(0);
+  const [audioBase64,   setAudioBase64]   = useState<string | null>(null);
+  const [audioUri,      setAudioUri]      = useState<string | null>(null);
+  const [audioMimeType, setAudioMimeType] = useState('audio/m4a');
+  const [error,         setError]         = useState('');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -48,7 +50,8 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) { setError('Microphone permission denied.'); return; }
 
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      // setAudioModeAsync is a no-op on web/Tauri but may throw — ignore gracefully
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true }).catch(() => {});
 
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -74,6 +77,8 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
       const b64  = await blobToBase64(blob);
       setAudioBase64(b64);
       setAudioUri(uri);
+      // Use the actual blob MIME type; fall back to platform defaults
+      setAudioMimeType(blob.type || (isTauri() ? 'audio/webm' : 'audio/m4a'));
       setState('recorded');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Stop failed');
@@ -88,26 +93,32 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
       type:      'voice',
       createdAt: Date.now(),
       data:      audioBase64,
-      mimeType:  'audio/m4a',
+      mimeType:  audioMimeType,
       duration,
     };
     onAdd(attachment);
-  }, [audioBase64, duration, onAdd]);
+  }, [audioBase64, audioMimeType, duration, onAdd]);
 
   const handleTranscribe = useCallback(async () => {
     if (!audioBase64 || !audioUri) return;
 
-    const whisperFn = whisper.status === 'loaded' ? whisper.transcribe : null;
+    const whisperFn       = whisper.status === 'loaded' ? whisper.transcribe : null;
+    const whisperServerUrl = ai.whisperServerConfig.enabled
+      ? ai.whisperServerConfig.baseUrl
+      : null;
+
     setState('transcribing');
     setError('');
-    const result = await transcribeAudioWithFallback(audioUri, audioBase64, 'audio/m4a', whisperFn);
+    const result = await transcribeAudioWithFallback(
+      audioUri, audioBase64, audioMimeType, whisperFn, whisperServerUrl,
+    );
     if (result.ok) {
       const attachment: Attachment = {
         id:            newId(),
         type:          'voice',
         createdAt:     Date.now(),
         data:          audioBase64,
-        mimeType:      'audio/m4a',
+        mimeType:      audioMimeType,
         duration,
         transcription: result.value,
       };
@@ -116,7 +127,10 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
       setError(result.error.message);
       setState('recorded');
     }
-  }, [audioBase64, audioUri, whisper.status, whisper.transcribe, duration, onAdd]);
+  }, [audioBase64, audioUri, audioMimeType, whisper.status, whisper.transcribe,
+      ai.whisperServerConfig, duration, onAdd]);
+
+  const canTranscribe = whisper.status === 'loaded' || ai.whisperServerConfig.enabled;
 
   const fmt = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
@@ -141,7 +155,7 @@ export function VoiceRecorder({ onAdd, onCancel }: Props) {
         <View style={styles.actions}>
           <Btn variant="ghost"   label="RE-RECORD"  onPress={() => { setState('idle'); setDuration(0); }} style={styles.btn} testID="rec-redo" />
           <Btn variant="ghost"   label="SAVE AUDIO" onPress={handleSave}       style={styles.btn} testID="rec-save" />
-          {ai.hasAnyProvider && (
+          {canTranscribe && (
             <Btn variant="primary" label="TRANSCRIBE"  onPress={handleTranscribe} style={styles.btn} testID="rec-transcribe" />
           )}
         </View>

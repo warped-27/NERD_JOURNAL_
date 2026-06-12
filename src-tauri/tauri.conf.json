@@ -42,7 +42,8 @@
     "macOS": {
       "signingIdentity": null,
       "providerShortName": null,
-      "entitlements": null
+      "entitlements": null,
+      "infoPlist": "Info.plist"
     },
     "windows": {
       "certificateThumbprint": null,

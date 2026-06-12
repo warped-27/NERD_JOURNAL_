@@ -50,6 +50,12 @@ export default function SettingsScreen() {
   const [mlxTesting, setMlxTesting] = useState(false);
   const [mlxStatus,  setMlxStatus]  = useState('');
 
+  // Whisper server form state (desktop only)
+  const [whisperEnabled, setWhisperEnabled] = useState(ai.whisperServerConfig.enabled);
+  const [whisperUrl,     setWhisperUrl]     = useState(ai.whisperServerConfig.baseUrl);
+  const [whisperTesting, setWhisperTesting] = useState(false);
+  const [whisperStatus,  setWhisperStatus]  = useState('');
+
   // WebDAV form state (seeded from stored config)
   const wdCfg  = sync.config.provider === 'webdav' ? sync.config.webdav : undefined;
   const [wdUrl,      setWdUrl]      = useState(wdCfg?.url      ?? '');
@@ -102,6 +108,23 @@ export default function SettingsScreen() {
       setMlxStatus(e instanceof Error ? e.message : 'Connection test failed');
     } finally {
       setMlxTesting(false);
+    }
+  }
+
+  async function handleWhisperSave() {
+    const url = whisperUrl.trim();
+    if (!url) return;
+    setWhisperTesting(true);
+    setWhisperStatus('');
+    try {
+      const { testWhisperServerConnection } = await import('../src/ai/whisper/whisperServerClient');
+      if (whisperEnabled) await testWhisperServerConnection(url);
+      await ai.setWhisperServerConfig({ enabled: whisperEnabled, baseUrl: url });
+      setWhisperStatus(whisperEnabled ? 'Whisper server configured ✓' : 'Whisper server disabled ✓');
+    } catch (e) {
+      setWhisperStatus(e instanceof Error ? e.message : 'Connection test failed');
+    } finally {
+      setWhisperTesting(false);
     }
   }
 
@@ -686,6 +709,58 @@ export default function SettingsScreen() {
                 />
               )}
             </View>
+          </>
+        )}
+
+        {/* ─── VOICE TRANSCRIPTION (DESKTOP) ─── */}
+        {isTauri() && (
+          <>
+            <T variant="heading" style={[styles.section, styles.syncHeading]}>VOICE TRANSCRIPTION</T>
+            <T variant="muted" style={styles.hint}>
+              Connect a local Whisper-compatible server for voice transcription on desktop.
+              faster-whisper-server and whisper.cpp both work out of the box.{'\n'}
+              macOS Apple Silicon: whisper.cpp --server --model ggml-small.bin{'\n'}
+              Any platform: docker run -p 8000:8000 fedirz/faster-whisper-server
+            </T>
+            <Pressable
+              style={[styles.toggleRow, whisperEnabled && styles.toggleRowActive]}
+              onPress={() => setWhisperEnabled(!whisperEnabled)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: whisperEnabled }}
+              testID="whisper-server-toggle"
+            >
+              <View style={[styles.radio, whisperEnabled && styles.radioActive]} />
+              <T variant={whisperEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
+                {whisperEnabled ? 'ENABLED' : 'DISABLED'}
+              </T>
+            </Pressable>
+            <Input
+              value={whisperUrl}
+              onChangeText={setWhisperUrl}
+              placeholder="http://localhost:8000"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={styles.input}
+              testID="whisper-server-url"
+            />
+            <Btn
+              label={whisperTesting ? 'TESTING…' : 'SAVE WHISPER SERVER'}
+              variant="primary"
+              onPress={handleWhisperSave}
+              loading={whisperTesting}
+              style={[styles.btn, styles.fullBtn]}
+              testID="whisper-server-save"
+            />
+            {whisperStatus ? (
+              <T
+                variant={whisperStatus.includes('✓') ? 'label' : 'error'}
+                style={[styles.status, styles.sectionGap]}
+                testID="whisper-server-status"
+              >
+                {whisperStatus}
+              </T>
+            ) : null}
           </>
         )}
 

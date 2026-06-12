@@ -15,9 +15,10 @@ import { makeOpenAiCompatProvider } from './providers/openAiCompatProvider';
 import { useOnDevice } from './onDevice/OnDeviceContext';
 import type { AiProvider as AiProviderType } from './providers/types';
 
-const AI_AUTOENRICH_KEY    = 'nj_ai_autoenrich';
-const AI_OLLAMA_CONFIG_KEY = 'nj_ollama_config';
-const AI_MLX_CONFIG_KEY    = 'nj_mlx_config';
+const AI_AUTOENRICH_KEY          = 'nj_ai_autoenrich';
+const AI_OLLAMA_CONFIG_KEY       = 'nj_ollama_config';
+const AI_MLX_CONFIG_KEY          = 'nj_mlx_config';
+const AI_WHISPER_SERVER_KEY      = 'nj_whisper_server_config';
 
 export interface OllamaConfig {
   enabled: boolean;
@@ -29,6 +30,11 @@ export interface MlxConfig {
   enabled: boolean;
   baseUrl: string;
   model:   string;
+}
+
+export interface WhisperServerConfig {
+  enabled: boolean;
+  baseUrl: string;
 }
 
 const DEFAULT_OLLAMA_CONFIG: OllamaConfig = {
@@ -43,13 +49,20 @@ const DEFAULT_MLX_CONFIG: MlxConfig = {
   model:   'mlx-community/Llama-3.2-3B-Instruct-4bit',
 };
 
+const DEFAULT_WHISPER_SERVER_CONFIG: WhisperServerConfig = {
+  enabled: false,
+  baseUrl: 'http://localhost:8000',
+};
+
 interface AiContextValue {
   // Provider cascade (local only: on-device → Ollama → MLX)
   hasAnyProvider:  boolean;
   ollamaConfig:    OllamaConfig;
   mlxConfig:       MlxConfig;
-  setOllamaConfig: (c: OllamaConfig) => Promise<void>;
-  setMlxConfig:    (c: MlxConfig)    => Promise<void>;
+  setOllamaConfig:       (c: OllamaConfig)       => Promise<void>;
+  setMlxConfig:          (c: MlxConfig)          => Promise<void>;
+  whisperServerConfig:    WhisperServerConfig;
+  setWhisperServerConfig: (c: WhisperServerConfig) => Promise<void>;
   // AI interaction
   ask:        (noteContent: string, instruction: string) => Promise<Result<string, Error>>;
   doComplete: (prompt: string)                           => Promise<Result<string, Error>>;
@@ -65,8 +78,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const onDevice = useOnDevice();
   const [isLoading, setIsLoading]         = useState(false);
   const [autoEnrich, setAutoEnrichState]  = useState(false);
-  const [ollamaConfig, setOllamaConfigState] = useState<OllamaConfig>(DEFAULT_OLLAMA_CONFIG);
-  const [mlxConfig,    setMlxConfigState]    = useState<MlxConfig>(DEFAULT_MLX_CONFIG);
+  const [ollamaConfig,       setOllamaConfigState]       = useState<OllamaConfig>(DEFAULT_OLLAMA_CONFIG);
+  const [mlxConfig,          setMlxConfigState]          = useState<MlxConfig>(DEFAULT_MLX_CONFIG);
+  const [whisperServerConfig, setWhisperServerConfigState] = useState<WhisperServerConfig>(DEFAULT_WHISPER_SERVER_CONFIG);
 
   // ── Provider list (local-first: on-device → Ollama → MLX) ────────────────
   const providers = useMemo((): AiProviderType[] => {
@@ -93,10 +107,11 @@ export function AiProvider({ children }: { children: ReactNode }) {
 
   // ── Load persisted settings ───────────────────────────────────────────────
   const loadSettings = useCallback(async () => {
-    const [autoEnrichSaved, ollamaSaved, mlxSaved, legacyAutoEnrich] = await Promise.all([
+    const [autoEnrichSaved, ollamaSaved, mlxSaved, whisperServerSaved, legacyAutoEnrich] = await Promise.all([
       secretGet(AI_AUTOENRICH_KEY),
       secretGet(AI_OLLAMA_CONFIG_KEY),
       secretGet(AI_MLX_CONFIG_KEY),
+      secretGet(AI_WHISPER_SERVER_KEY),
       secretGet('nj_gemini_autoenrich'),
     ]);
     // Migrate legacy key written by older versions
@@ -110,6 +125,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
     }
     if (mlxSaved) {
       try { setMlxConfigState(JSON.parse(mlxSaved) as MlxConfig); } catch {}
+    }
+    if (whisperServerSaved) {
+      try { setWhisperServerConfigState(JSON.parse(whisperServerSaved) as WhisperServerConfig); } catch {}
     }
   }, []);
 
@@ -125,6 +143,11 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const setMlxConfig = useCallback(async (c: MlxConfig) => {
     await secretSet(AI_MLX_CONFIG_KEY, JSON.stringify(c));
     setMlxConfigState(c);
+  }, []);
+
+  const setWhisperServerConfig = useCallback(async (c: WhisperServerConfig) => {
+    await secretSet(AI_WHISPER_SERVER_KEY, JSON.stringify(c));
+    setWhisperServerConfigState(c);
   }, []);
 
   const setAutoEnrich = useCallback(async (v: boolean) => {
@@ -155,8 +178,10 @@ export function AiProvider({ children }: { children: ReactNode }) {
         hasAnyProvider: providers.length > 0,
         ollamaConfig,
         mlxConfig,
+        whisperServerConfig,
         setOllamaConfig,
         setMlxConfig,
+        setWhisperServerConfig,
         ask,
         doComplete,
         isLoading,

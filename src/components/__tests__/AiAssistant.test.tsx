@@ -23,10 +23,12 @@ const mockUseAi = useAi as jest.MockedFunction<typeof useAi>;
 function makeAiCtx(overrides: Partial<ReturnType<typeof useAi>> = {}): ReturnType<typeof useAi> {
   return {
     hasAnyProvider:  true,
-    ollamaConfig:    { enabled: false, baseUrl: 'http://localhost:11434', model: 'llama3.2:3b' },
-    mlxConfig:       { enabled: false, baseUrl: 'http://localhost:8080',  model: 'mlx-community/Llama-3.2-3B-Instruct-4bit' },
-    setOllamaConfig: jest.fn(),
-    setMlxConfig:    jest.fn(),
+    ollamaConfig:          { enabled: false, baseUrl: 'http://localhost:11434', model: 'llama3.2:3b' },
+    mlxConfig:             { enabled: false, baseUrl: 'http://localhost:8080',  model: 'mlx-community/Llama-3.2-3B-Instruct-4bit' },
+    whisperServerConfig:   { enabled: false, baseUrl: 'http://localhost:8000' },
+    setOllamaConfig:       jest.fn(),
+    setMlxConfig:          jest.fn(),
+    setWhisperServerConfig: jest.fn(),
     ask:             jest.fn(),
     doComplete:      jest.fn(),
     isLoading:       false,
