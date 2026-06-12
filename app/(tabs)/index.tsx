@@ -44,10 +44,8 @@ export default function HomeScreen() {
     <>
       {/* ── Header ───────────────────────────────────────────── */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <NerdLogo size="md" tagline="personal knowledge base" showDot />
-        </View>
-        <View style={styles.headerRight}>
+        <NerdLogo size="md" tagline="personal knowledge base" showDot />
+        <View style={styles.headerControls}>
           <T variant="caption" style={styles.noteCount}>
             {notes.length} {notes.length === 1 ? 'entry' : 'entries'}
           </T>
@@ -147,13 +145,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop:        Spacing.xl,
     paddingBottom:     Spacing.md,
-    flexDirection:     'row',
-    justifyContent:    'space-between',
-    alignItems:        'flex-end',
+    gap:               Spacing.sm,
     zIndex:            3,
   },
-  headerLeft:  { flex: 1 },
-  headerRight: {
+  headerControls: {
     flexDirection: 'row',
     alignItems:    'center',
     gap:           Spacing.md,
@@ -207,12 +202,8 @@ const styles = StyleSheet.create({
     justifyContent:  'center',
     borderRadius:    0,
     zIndex:          10,
-    shadowColor:     Colors.green,
-    shadowOffset:    { width: 0, height: 0 },
-    shadowOpacity:   0.6,
-    shadowRadius:    16,
     elevation:       8,
-    // @ts-ignore — web-only property (replaces deprecated shadow* props on web)
+    // @ts-ignore — web-only CSS
     boxShadow:       `0 0 16px 0 ${Colors.green}99`,
   },
   fabPressed: { opacity: 0.75 },

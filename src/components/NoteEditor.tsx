@@ -186,7 +186,7 @@ export function NoteEditor({
         )}
 
         {/* Related notes — offline TF-IDF, only when note has content */}
-        {currentNote && allNotes && onOpenNote && (title || content) && (
+        {currentNote && allNotes && onOpenNote && !!(title || content) && (
           <RelatedNotes
             currentNote={{ ...currentNote, title, content }}
             allNotes={allNotes}
@@ -197,6 +197,24 @@ export function NoteEditor({
         {error ? <T variant="error" style={styles.error}>{error}</T> : null}
 
         <View style={styles.actions}>
+          <View style={styles.primaryActions}>
+            <Btn
+              label="SAVE"
+              onPress={handleSave}
+              loading={saving}
+              style={styles.saveBtn}
+              testID="save-btn"
+            />
+            {onDelete && (
+              <Btn
+                label="DELETE"
+                variant="danger"
+                onPress={handleDelete}
+                style={styles.deleteBtn}
+                testID="delete-btn"
+              />
+            )}
+          </View>
           <Btn
             label="+ ATTACH"
             variant="ghost"
@@ -204,22 +222,6 @@ export function NoteEditor({
             style={styles.attachBtn}
             testID="attach-btn"
           />
-          <Btn
-            label="SAVE"
-            onPress={handleSave}
-            loading={saving}
-            style={styles.saveBtn}
-            testID="save-btn"
-          />
-          {onDelete && (
-            <Btn
-              label="DELETE"
-              variant="danger"
-              onPress={handleDelete}
-              style={styles.deleteBtn}
-              testID="delete-btn"
-            />
-          )}
         </View>
       </ScrollView>
 
@@ -271,9 +273,10 @@ const styles = StyleSheet.create({
     fontSize:         10,
   },
 
-  error:     { marginBottom: Spacing.sm },
-  actions:   { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.sm },
-  attachBtn: { flex: 0, paddingHorizontal: Spacing.sm },
-  saveBtn:   { flex: 1 },
-  deleteBtn: { flex: 1 },
+  error:          { marginBottom: Spacing.sm },
+  actions:        { gap: Spacing.xs, marginTop: Spacing.sm },
+  primaryActions: { flexDirection: 'row', gap: Spacing.xs },
+  attachBtn:      { alignSelf: 'flex-start', paddingHorizontal: Spacing.sm },
+  saveBtn:        { flex: 1 },
+  deleteBtn:      { flex: 1 },
 });
