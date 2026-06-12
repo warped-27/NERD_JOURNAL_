@@ -47,7 +47,7 @@ llama.rn (on-device) → Ollama / Jan / LM Studio → MLX
 
 | Provider | Privacy | Platform | Notes |
 |---|---|---|---|
-| **llama.rn** | 🟢 On-device | iOS · Android | Gemma 3 4B Q4_K_M — fully offline |
+| **llama.rn** | 🟢 On-device | iOS · Android | User-selectable GGUF model — downloaded once, runs fully offline |
 | **Ollama** | 🟢 Local | Desktop · Mobile (LAN IP) | Any Ollama model, e.g. `llama3.2:3b` |
 | **Jan** | 🟢 Local | Desktop · Mobile (LAN IP) | OpenAI-compatible — `localhost:1337` by default |
 | **LM Studio** | 🟢 Local | Desktop · Mobile (LAN IP) | OpenAI-compatible — `localhost:1234` by default |
@@ -56,6 +56,17 @@ llama.rn (on-device) → Ollama / Jan / LM Studio → MLX
 All providers are **local-only** — note content never leaves your machine or LAN. No API keys. No consent dialogs. No cloud calls.
 
 The Ollama slot in Settings accepts any OpenAI-compatible local runtime: Ollama, Jan, LM Studio, or any other server that speaks the `/v1/chat/completions` API.
+
+#### On-device model picker
+
+Choose and swap the on-device GGUF model from Settings → On-Device AI. Models are downloaded once from HuggingFace and stored locally; multiple models can be downloaded simultaneously. The active model can be swapped without losing downloaded files.
+
+| Model | Size | Notes |
+|---|---|---|
+| **Gemma 4 E2B** ✦ | ~3.7 GB | Google · MoE architecture · newest · best quality per active param |
+| **Gemma 3 4B** | 2.5 GB | Google · proven default · best overall quality · solid multilingual |
+| **Qwen 2.5 3B** | 1.9 GB | Alibaba · excellent multilingual · great for mixed-language notes |
+| **Phi-4 Mini** | 2.5 GB | Microsoft · strong reasoning · 3.8B params in a compact package |
 
 ### Voice Transcription (Whisper)
 - **On-device** (iOS / Android): Whisper Small (244 MB, downloaded once from HuggingFace `ggerganov/whisper.cpp`) — audio never leaves the device, works fully offline
