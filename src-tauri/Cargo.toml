@@ -26,9 +26,3 @@ rand                = "0.8"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
-
-[patch.crates-io]
-# cookie 0.18.1 blanket impl<T: Into<Option<OffsetDateTime>>> conflicts with
-# time >= 0.3.35 ModifierValue impls on Rust >= 1.96. Patched locally with
-# two specific From impls that are functionally equivalent.
-cookie = { path = "patches/cookie" }
