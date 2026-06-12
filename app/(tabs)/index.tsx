@@ -58,7 +58,7 @@ export default function HomeScreen() {
           </Link>
           <Link href="/settings" asChild>
             <Pressable testID="settings-btn" accessibilityLabel="Settings" style={styles.settingsBtn}>
-              <T variant="kicker">CFG</T>
+              <T variant="kicker">SET</T>
             </Pressable>
           </Link>
         </View>
@@ -81,9 +81,11 @@ export default function HomeScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <T variant="kicker" style={styles.emptyKicker}>{'// no entries'}</T>
+              <T variant="kicker" style={styles.emptyKicker}>{'// empty'}</T>
               <T variant="muted" style={styles.emptyHint}>
-                {IS_DESKTOP ? 'Press Cmd+N to write your first log.' : 'Press + to write your first log.'}
+                {IS_DESKTOP
+                  ? 'Press Cmd+N to write your first entry. Tip: configure AI in Settings to auto-tag notes.'
+                  : 'Tap + to write your first entry. Tip: configure AI in Settings to auto-tag notes.'}
               </T>
             </View>
           }
@@ -94,9 +96,9 @@ export default function HomeScreen() {
 
   const desktopPlaceholder = (
     <View style={styles.desktopPlaceholder}>
-      <T variant="kicker" style={styles.placeholderLabel}>{'// SELECT AN ENTRY'}</T>
+      <T variant="kicker" style={styles.placeholderLabel}>{'// select an entry'}</T>
       <T variant="muted" style={styles.placeholderHint}>
-        Choose a note from the sidebar, or press Cmd+N to create one.
+        Choose an entry from the list, or press Cmd+N to write a new one.
       </T>
     </View>
   );

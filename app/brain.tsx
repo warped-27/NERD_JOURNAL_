@@ -159,7 +159,7 @@ export default function BrainScreen() {
         </Pressable>
         <View style={styles.headerRight}>
           <T variant="kicker" style={styles.headerTitle}>{'// SECOND BRAIN'}</T>
-          <T variant="caption" style={styles.noteCount}>{notes.length} notes indexed</T>
+          <T variant="caption" style={styles.noteCount}>{notes.length} entries in memory</T>
         </View>
       </View>
       <View style={styles.rule} />
@@ -168,7 +168,7 @@ export default function BrainScreen() {
       {!ai.hasAnyProvider && (
         <View style={styles.warning}>
           <T variant="muted" style={styles.warningText}>
-            No AI provider configured. Go to Settings → AI to add one.
+            No AI model connected. Go to Settings → AI to set up Ollama, an on-device model, or MLX.
           </T>
         </View>
       )}
@@ -187,8 +187,8 @@ export default function BrainScreen() {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <T variant="muted" style={styles.emptyText}>
-                Ask a question about your notes.{'\n'}
-                The most relevant entries are used as context.
+                Ask anything about your entries — the AI reads the most{'\n'}
+                relevant ones and answers from them. Nothing leaves your device.
               </T>
             </View>
           }
@@ -202,7 +202,7 @@ export default function BrainScreen() {
         {/* Thinking indicator */}
         {thinking && (
           <View style={styles.thinkingRow}>
-            <T variant="caption" style={styles.thinkingText}>THINKING…</T>
+            <T variant="caption" style={styles.thinkingText}>thinking…</T>
           </View>
         )}
 
@@ -212,7 +212,7 @@ export default function BrainScreen() {
             style={styles.textInput}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask your journal…"
+            placeholder="Ask anything about your notes…"
             placeholderTextColor={Colors.textMuted}
             multiline
             onSubmitEditing={handleSend}

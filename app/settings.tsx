@@ -87,7 +87,7 @@ export default function SettingsScreen() {
     try {
       if (ollamaEnabled) await testOpenAiCompatConnection(url);
       await ai.setOllamaConfig({ enabled: ollamaEnabled, baseUrl: url, model: ollamaModel.trim() });
-      setOllamaStatus(ollamaEnabled ? 'Ollama configured ✓' : 'Ollama disabled ✓');
+      setOllamaStatus(ollamaEnabled ? 'Connected to Ollama ✓' : 'Ollama disabled');
     } catch (e) {
       setOllamaStatus(e instanceof Error ? e.message : 'Connection test failed');
     } finally {
@@ -103,7 +103,7 @@ export default function SettingsScreen() {
     try {
       if (mlxEnabled) await testOpenAiCompatConnection(url);
       await ai.setMlxConfig({ enabled: mlxEnabled, baseUrl: url, model: mlxModel.trim() });
-      setMlxStatus(mlxEnabled ? 'MLX configured ✓' : 'MLX disabled ✓');
+      setMlxStatus(mlxEnabled ? 'Connected to MLX ✓' : 'MLX disabled');
     } catch (e) {
       setMlxStatus(e instanceof Error ? e.message : 'Connection test failed');
     } finally {
@@ -120,7 +120,7 @@ export default function SettingsScreen() {
       const { testWhisperServerConnection } = await import('../src/ai/whisper/whisperServerClient');
       if (whisperEnabled) await testWhisperServerConnection(url);
       await ai.setWhisperServerConfig({ enabled: whisperEnabled, baseUrl: url });
-      setWhisperStatus(whisperEnabled ? 'Whisper server configured ✓' : 'Whisper server disabled ✓');
+      setWhisperStatus(whisperEnabled ? 'Connected to Whisper server ✓' : 'Whisper server disabled');
     } catch (e) {
       setWhisperStatus(e instanceof Error ? e.message : 'Connection test failed');
     } finally {
@@ -326,14 +326,14 @@ export default function SettingsScreen() {
     setBioStatus('');
     const result = await vault.enableBiometrics();
     setBioLoading(false);
-    setBioStatus(result.ok ? 'Biometric unlock enabled ✓' : result.error);
+    setBioStatus(result.ok ? 'Biometric unlock active ✓' : result.error);
   }
 
   async function handleBiometricRevoke() {
     setBioLoading(true);
     await vault.disableBiometrics();
     setBioLoading(false);
-    setBioStatus('Biometric unlock disabled');
+    setBioStatus('Biometric unlock removed');
   }
 
   return (
@@ -354,12 +354,12 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
 
         {/* ─── AUTO-ENRICH ─── */}
-        <T variant="heading" style={styles.section}>AI SETTINGS</T>
+        <T variant="heading" style={styles.section}>AI</T>
 
-        <T variant="label" style={styles.label}>AUTO-ENRICH NOTES</T>
+        <T variant="label" style={styles.label}>AUTO-TAG & SUMMARISE</T>
         <T variant="muted" style={styles.hint}>
-          When enabled, notes are automatically tagged and summarised by AI after each save.
-          Requires a local AI provider (on-device model, Ollama, or MLX) to be active.
+          Each time you save a note, the AI adds tags, a one-line summary, and a colour
+          palette automatically. Requires an active AI model (see below).
         </T>
         <Pressable
           style={[styles.toggleRow, ai.autoEnrich && styles.toggleRowActive]}
@@ -370,20 +370,20 @@ export default function SettingsScreen() {
         >
           <View style={[styles.radio, ai.autoEnrich && styles.radioActive]} />
           <T variant={ai.autoEnrich ? 'label' : 'muted'} style={styles.modelLabel}>
-            {ai.autoEnrich ? 'ENABLED' : 'DISABLED'}
+            {ai.autoEnrich ? 'ON' : 'OFF'}
           </T>
         </Pressable>
 
         {/* ─── ON-DEVICE ─── */}
-        <T variant="heading" style={[styles.section, styles.syncHeading]}>ON-DEVICE AI</T>
+        <T variant="heading" style={[styles.section, styles.syncHeading]}>ON-DEVICE MODEL</T>
         <T variant="muted" style={styles.hint}>
-          Choose a GGUF model. Downloaded once, stored locally — no internet required
-          after download. Notes never leave your hardware.
+          Pick a model that runs entirely on your phone. Downloaded once (~1.5–3.7 GB),
+          then fully offline. Nothing leaves your device.
         </T>
 
         {onDevice.status === 'unavailable' ? (
           <T variant="muted" style={styles.hint}>
-            On-device inference is only available on iOS and Android native builds.
+            On-device models run on iOS and Android. On desktop, use the AI Server section below.
           </T>
         ) : (
           <>
@@ -440,13 +440,13 @@ export default function SettingsScreen() {
               testID="ondevice-status"
             >
               {{
-                'not-downloaded': 'Not downloaded',
-                downloading:      `Downloading… ${Math.round(onDevice.downloadProgress * 100)}%`,
-                'download-error': `Error: ${onDevice.errorMessage ?? 'download failed'}`,
-                ready:            'Downloaded — not loaded',
-                loading:          `Loading model… ${Math.round(onDevice.downloadProgress * 100)}%`,
-                loaded:           'Loaded ✓ — on-device inference active',
-                error:            `Error: ${onDevice.errorMessage ?? 'load failed'}`,
+                'not-downloaded': 'Not installed',
+                downloading:      `Installing… ${Math.round(onDevice.downloadProgress * 100)}%`,
+                'download-error': `Failed to install: ${onDevice.errorMessage ?? 'download failed'} — try again`,
+                ready:            'Installed — tap ACTIVATE to use',
+                loading:          `Activating… ${Math.round(onDevice.downloadProgress * 100)}%`,
+                loaded:           'Active ✓ — AI is running on this device',
+                error:            `Failed to load: ${onDevice.errorMessage ?? 'unknown error'} — try ACTIVATE again`,
                 unavailable:      '',
               }[onDevice.status]}
             </T>
@@ -454,7 +454,7 @@ export default function SettingsScreen() {
             <View style={styles.actions}>
               {onDevice.status === 'not-downloaded' || onDevice.status === 'download-error' ? (
                 <Btn
-                  label="DOWNLOAD MODEL"
+                  label="INSTALL"
                   variant="primary"
                   onPress={onDevice.startDownload}
                   style={styles.btn}
@@ -475,14 +475,14 @@ export default function SettingsScreen() {
               {onDevice.status === 'ready' || onDevice.status === 'error' ? (
                 <>
                   <Btn
-                    label="LOAD MODEL"
+                    label="ACTIVATE"
                     variant="primary"
                     onPress={onDevice.loadModel}
                     style={styles.btn}
                     testID="ondevice-load"
                   />
                   <Btn
-                    label="DELETE"
+                    label="REMOVE"
                     variant="danger"
                     onPress={onDevice.deleteLocalModel}
                     style={styles.btn}
@@ -493,7 +493,7 @@ export default function SettingsScreen() {
 
               {onDevice.status === 'loaded' ? (
                 <Btn
-                  label="UNLOAD MODEL"
+                  label="DEACTIVATE"
                   variant="ghost"
                   onPress={onDevice.unloadModel}
                   style={styles.btn}
@@ -505,18 +505,18 @@ export default function SettingsScreen() {
         )}
 
         {/* ─── OLLAMA ─── */}
-        <T variant="heading" style={[styles.section, styles.syncHeading]}>LOCAL AI</T>
+        <T variant="heading" style={[styles.section, styles.syncHeading]}>AI SERVER</T>
         <T variant="muted" style={styles.hint}>
-          Run a local model on your machine or LAN. Local providers are tried first
-          in cascade: on-device → Ollama → MLX. Your notes never leave the device.
+          Connect an AI server running on your machine or home network. Tried in order:
+          on-device → Ollama/Jan/LM Studio → MLX. Notes never leave your local network.
         </T>
 
-        <T variant="label" style={styles.label}>OLLAMA / JAN / LM STUDIO</T>
+        <T variant="label" style={styles.label}>OLLAMA · JAN · LM STUDIO</T>
         <T variant="muted" style={styles.hint}>
-          Any OpenAI-compatible local runtime works here:{'\n'}
-          Ollama → localhost:11434 · Jan → localhost:1337 · LM Studio → localhost:1234
+          Any OpenAI-compatible server works. Default ports:{'\n'}
+          Ollama: 11434 · Jan: 1337 · LM Studio: 1234
           {isNativePlatform()
-            ? '\nOn mobile, replace localhost with your computer\'s LAN IP (e.g. http://192.168.1.x:PORT).'
+            ? '\nOn mobile, replace localhost with your computer\'s local IP (e.g. http://192.168.1.x:PORT).'
             : ''}
         </T>
         <Pressable
@@ -528,7 +528,7 @@ export default function SettingsScreen() {
         >
           <View style={[styles.radio, ollamaEnabled && styles.radioActive]} />
           <T variant={ollamaEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
-            {ollamaEnabled ? 'ENABLED' : 'DISABLED'}
+            {ollamaEnabled ? 'ON' : 'OFF'}
           </T>
         </Pressable>
         <Input
@@ -551,7 +551,7 @@ export default function SettingsScreen() {
           testID="ollama-model"
         />
         <Btn
-          label={ollamaTesting ? 'TESTING…' : 'SAVE OLLAMA'}
+          label={ollamaTesting ? 'CONNECTING…' : 'CONNECT'}
           variant="primary"
           onPress={handleOllamaSave}
           loading={ollamaTesting}
@@ -569,16 +569,16 @@ export default function SettingsScreen() {
         ) : null}
 
         {/* ─── MLX ─── */}
-        <T variant="label" style={[styles.label, styles.modelTitle]}>MLX (APPLE SILICON)</T>
+        <T variant="label" style={[styles.label, styles.modelTitle]}>MLX — APPLE SILICON ONLY</T>
         {isNativePlatform() ? (
           <T variant="muted" style={styles.hint}>
-            MLX runs on macOS with Apple Silicon — not available on iOS or Android.
+            MLX runs only on macOS with Apple Silicon — not available on iPhone or Android.
           </T>
         ) : (
           <>
         <T variant="muted" style={styles.hint}>
-          Run mlx-lm on macOS with Apple Silicon for fast on-device inference.
-          Start the server: mlx_lm.server --model &lt;model&gt; --port 8080
+          Fastest option on Apple Silicon Macs. Start with:{'\n'}
+          mlx_lm.server --model &lt;model-name&gt; --port 8080
         </T>
         <Pressable
           style={[styles.toggleRow, mlxEnabled && styles.toggleRowActive]}
@@ -589,7 +589,7 @@ export default function SettingsScreen() {
         >
           <View style={[styles.radio, mlxEnabled && styles.radioActive]} />
           <T variant={mlxEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
-            {mlxEnabled ? 'ENABLED' : 'DISABLED'}
+            {mlxEnabled ? 'ON' : 'OFF'}
           </T>
         </Pressable>
         <Input
@@ -612,7 +612,7 @@ export default function SettingsScreen() {
           testID="mlx-model"
         />
         <Btn
-          label={mlxTesting ? 'TESTING…' : 'SAVE MLX'}
+          label={mlxTesting ? 'CONNECTING…' : 'CONNECT'}
           variant="primary"
           onPress={handleMlxSave}
           loading={mlxTesting}
@@ -632,16 +632,15 @@ export default function SettingsScreen() {
         )}
 
         {/* ─── WHISPER ─── */}
-        <T variant="heading" style={[styles.section, styles.syncHeading]}>LOCAL TRANSCRIPTION</T>
+        <T variant="heading" style={[styles.section, styles.syncHeading]}>VOICE TRANSCRIPTION</T>
         <T variant="muted" style={styles.hint}>
-          Whisper Small runs entirely on your device — audio never leaves and
-          transcription works offline. The 244 MB model is downloaded once from
-          HuggingFace (ggerganov/whisper.cpp) and stored locally.
+          Speech-to-text on your device — audio never leaves the phone.
+          A 244 MB model is downloaded once and stored locally. Works offline.
         </T>
 
         {whisper.status === 'unavailable' ? (
           <T variant="muted" style={styles.hint}>
-            Local Whisper is only available on iOS and Android native builds.
+            On-device voice transcription runs on iOS and Android. On desktop, configure a Whisper server below.
           </T>
         ) : (
           <>
@@ -651,13 +650,13 @@ export default function SettingsScreen() {
               testID="whisper-status"
             >
               {{
-                'not-downloaded': 'Whisper Small — not downloaded (244 MB)',
-                downloading:      `Downloading… ${Math.round(whisper.downloadProgress * 100)}%`,
-                'download-error': `Error: ${whisper.errorMessage ?? 'download failed'}`,
-                ready:            'Whisper Small — downloaded, not loaded',
-                loading:          'Loading Whisper model…',
-                loaded:           'Whisper Small — loaded ✓ (on-device transcription active)',
-                error:            `Error: ${whisper.errorMessage ?? 'load failed'}`,
+                'not-downloaded': 'Not installed — 244 MB download',
+                downloading:      `Installing… ${Math.round(whisper.downloadProgress * 100)}%`,
+                'download-error': `Failed to install: ${whisper.errorMessage ?? 'download failed'} — try again`,
+                ready:            'Installed — tap ACTIVATE to use',
+                loading:          'Activating…',
+                loaded:           'Active ✓ — transcription runs on this device',
+                error:            `Failed to load: ${whisper.errorMessage ?? 'unknown error'} — try ACTIVATE again`,
                 unavailable:      '',
               }[whisper.status]}
             </T>
@@ -665,7 +664,7 @@ export default function SettingsScreen() {
             <View style={styles.actions}>
               {(whisper.status === 'not-downloaded' || whisper.status === 'download-error') && (
                 <Btn
-                  label="DOWNLOAD WHISPER"
+                  label="INSTALL"
                   variant="primary"
                   onPress={whisper.startDownload}
                   style={styles.btn}
@@ -684,14 +683,14 @@ export default function SettingsScreen() {
               {(whisper.status === 'ready' || whisper.status === 'error') && (
                 <>
                   <Btn
-                    label="LOAD MODEL"
+                    label="ACTIVATE"
                     variant="primary"
                     onPress={whisper.loadModel}
                     style={styles.btn}
                     testID="whisper-load"
                   />
                   <Btn
-                    label="DELETE"
+                    label="REMOVE"
                     variant="danger"
                     onPress={whisper.deleteLocalModel}
                     style={styles.btn}
@@ -701,7 +700,7 @@ export default function SettingsScreen() {
               )}
               {whisper.status === 'loaded' && (
                 <Btn
-                  label="UNLOAD MODEL"
+                  label="DEACTIVATE"
                   variant="ghost"
                   onPress={whisper.unloadModel}
                   style={styles.btn}
@@ -715,12 +714,11 @@ export default function SettingsScreen() {
         {/* ─── VOICE TRANSCRIPTION (DESKTOP) ─── */}
         {isTauri() && (
           <>
-            <T variant="heading" style={[styles.section, styles.syncHeading]}>VOICE TRANSCRIPTION</T>
+            <T variant="heading" style={[styles.section, styles.syncHeading]}>VOICE TRANSCRIPTION — DESKTOP</T>
             <T variant="muted" style={styles.hint}>
-              Connect a local Whisper-compatible server for voice transcription on desktop.
-              faster-whisper-server and whisper.cpp both work out of the box.{'\n'}
-              macOS Apple Silicon: whisper.cpp --server --model ggml-small.bin{'\n'}
-              Any platform: docker run -p 8000:8000 fedirz/faster-whisper-server
+              Connect a local speech-to-text server. Two easy options:{'\n'}
+              • macOS: whisper.cpp --server --model ggml-small.bin --port 8000{'\n'}
+              • Any OS: docker run -p 8000:8000 fedirz/faster-whisper-server
             </T>
             <Pressable
               style={[styles.toggleRow, whisperEnabled && styles.toggleRowActive]}
@@ -731,7 +729,7 @@ export default function SettingsScreen() {
             >
               <View style={[styles.radio, whisperEnabled && styles.radioActive]} />
               <T variant={whisperEnabled ? 'label' : 'muted'} style={styles.modelLabel}>
-                {whisperEnabled ? 'ENABLED' : 'DISABLED'}
+                {whisperEnabled ? 'ON' : 'OFF'}
               </T>
             </Pressable>
             <Input
@@ -745,7 +743,7 @@ export default function SettingsScreen() {
               testID="whisper-server-url"
             />
             <Btn
-              label={whisperTesting ? 'TESTING…' : 'SAVE WHISPER SERVER'}
+              label={whisperTesting ? 'CONNECTING…' : 'CONNECT'}
               variant="primary"
               onPress={handleWhisperSave}
               loading={whisperTesting}
@@ -768,15 +766,15 @@ export default function SettingsScreen() {
         {vault.biometricAvailable && (
           <>
             <T variant="heading" style={[styles.section, styles.syncHeading]}>SECURITY</T>
-            <T variant="label" style={styles.label}>BIOMETRIC UNLOCK</T>
+            <T variant="label" style={styles.label}>FACE ID / FINGERPRINT</T>
             <T variant="muted" style={styles.hint}>
               {vault.biometricEnabled
-                ? 'Face ID / Fingerprint unlock is active. The vault key is stored in your device secure enclave.'
-                : 'Enable Face ID or Fingerprint unlock. The vault key will be stored in your device secure enclave — it never leaves the device.'}
+                ? 'Active — biometric unlock is on. The key lives in your device\'s secure chip.'
+                : 'Skip typing your password by using Face ID or Fingerprint. The key is stored in your device\'s secure chip and never leaves it.'}
             </T>
             {vault.biometricEnabled ? (
               <Btn
-                label={bioLoading ? 'DISABLING…' : 'DISABLE BIOMETRICS'}
+                label={bioLoading ? 'DISABLING…' : 'DISABLE BIOMETRIC UNLOCK'}
                 variant="danger"
                 onPress={handleBiometricRevoke}
                 loading={bioLoading}
@@ -785,7 +783,7 @@ export default function SettingsScreen() {
               />
             ) : (
               <Btn
-                label={bioLoading ? 'ENABLING…' : 'ENABLE BIOMETRICS'}
+                label={bioLoading ? 'ENABLING…' : 'ENABLE FACE ID / FINGERPRINT'}
                 variant="primary"
                 onPress={handleBiometricEnroll}
                 loading={bioLoading}
@@ -795,7 +793,7 @@ export default function SettingsScreen() {
               />
             )}
             {!vault.isUnlocked && !vault.biometricEnabled && (
-              <T variant="muted" style={styles.hint}>Unlock the vault first to enable biometrics.</T>
+              <T variant="muted" style={styles.hint}>Open the app first, then come back here to enable this.</T>
             )}
             {bioStatus ? (
               <T variant={bioStatus.includes('✓') ? 'label' : 'error'} style={styles.status}>
@@ -815,20 +813,18 @@ export default function SettingsScreen() {
 
         {!sync.hasConfigured && (
           <T variant="muted" style={[styles.hint, styles.warnText]}>
-            Notes exist only on this device. Configure sync to back up and share
-            across devices.
+            Your notes live only on this device. Set up sync to keep them safe and share across devices.
           </T>
         )}
 
         {/* ─── LAN SYNC ─── */}
-        <T variant="heading" style={[styles.section, styles.syncHeading]}>LAN SYNC</T>
+        <T variant="heading" style={[styles.section, styles.syncHeading]}>WI-FI SYNC</T>
         <T variant="muted" style={styles.hint}>
-          Sync with another device on the same Wi-Fi — no internet, no account.
           {isTauri()
-            ? ' Start the server here, then tap "Scan QR" on your phone.'
+            ? 'Sync with your phone over Wi-Fi — no internet, no cloud. Tap START below, then scan the QR code on your phone.'
             : isNativePlatform()
-            ? ' Start the server on your desktop, then tap Scan QR below.'
-            : ' Available on desktop (Tauri) and mobile only.'}
+            ? 'Sync with your desktop over Wi-Fi — no internet, no cloud. Start the sync on your desktop app, then tap SCAN QR CODE below to connect.'
+            : 'Wi-Fi sync is available in the desktop and mobile apps only.'}
         </T>
 
         {/* Desktop server */}
@@ -846,7 +842,7 @@ export default function SettingsScreen() {
                 <T variant="label" style={styles.lanAddr}>
                   {lanInfo.ip}:{lanInfo.port}
                 </T>
-                <T variant="muted" style={styles.lanPin}>PIN: {lanInfo.pin}</T>
+                <T variant="muted" style={styles.lanPin}>One-time code: {lanInfo.pin}</T>
                 <T variant="caption" style={styles.lanTimer}>
                   ⏱ {Math.floor(lanCountdown / 60)}:{String(lanCountdown % 60).padStart(2, '0')}
                 </T>
@@ -860,7 +856,7 @@ export default function SettingsScreen() {
               </View>
             ) : (
               <Btn
-                label="START LAN SYNC"
+                label="START WI-FI SYNC"
                 variant="primary"
                 onPress={handleLanStart}
                 style={[styles.btn, styles.fullBtn]}
@@ -885,7 +881,7 @@ export default function SettingsScreen() {
               </View>
             ) : (
               <Btn
-                label="SCAN QR"
+                label="SCAN QR CODE"
                 variant="primary"
                 onPress={() => { setLanStatus(''); setLanScanning(true); }}
                 style={[styles.btn, styles.fullBtn]}
@@ -906,9 +902,9 @@ export default function SettingsScreen() {
         ) : null}
 
         {/* WebDAV form */}
-        <T variant="label" style={styles.label}>WEBDAV / NEXTCLOUD</T>
+        <T variant="label" style={styles.label}>NEXTCLOUD · WEBDAV</T>
         <T variant="muted" style={styles.hint}>
-          Nextcloud, ownCloud, Syncthing WebDAV, or any standard WebDAV server.
+          Works with Nextcloud, ownCloud, Syncthing, or any WebDAV server.
         </T>
         <Input
           value={wdUrl}
@@ -939,7 +935,7 @@ export default function SettingsScreen() {
         />
         <View style={styles.actions}>
           <Btn
-            label={wdTesting ? 'TESTING…' : 'TEST & SAVE'}
+            label={wdTesting ? 'CONNECTING…' : 'CONNECT & SAVE'}
             variant="primary"
             onPress={handleWebDavSave}
             loading={wdTesting}
@@ -965,7 +961,7 @@ export default function SettingsScreen() {
                 : 'Never synced on this session'}
             </T>
             <Btn
-              label="DISCONNECT WEBDAV"
+              label="DISCONNECT"
               variant="danger"
               onPress={handleDisconnectWebDav}
               style={[styles.btn, styles.disconnectBtn]}
@@ -975,21 +971,21 @@ export default function SettingsScreen() {
         )}
 
         {/* File export/import */}
-        <T variant="label" style={[styles.label, styles.modelTitle]}>BACKUP FILE</T>
+        <T variant="label" style={[styles.label, styles.modelTitle]}>BACKUP & EXPORT</T>
         <T variant="muted" style={styles.hint}>
-          Export an encrypted vault bundle (.njvault) to file, or import one to
-          restore notes from another device. Export as Markdown for readable backups.
+          Save an encrypted backup to your device, or restore from one.
+          Use Markdown export for a readable copy you can open anywhere.
         </T>
         <View style={styles.actions}>
           <Btn
-            label="EXPORT .NJVAULT"
+            label="SAVE ENCRYPTED BACKUP"
             variant="ghost"
             onPress={handleExportFile}
             style={styles.btn}
             testID="sync-export-file"
           />
           <Btn
-            label="IMPORT FILE"
+            label="RESTORE FROM BACKUP"
             variant="ghost"
             onPress={handleImportFile}
             style={styles.btn}
