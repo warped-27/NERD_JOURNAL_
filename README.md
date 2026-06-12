@@ -15,7 +15,7 @@ There is no central database, no subscription, no proxy server. Your notes are e
 |---|---|
 | **Zero-Knowledge Encryption** | AES-256-GCM with a key derived via Argon2id from your master password. Notes never leave the device in plain text. |
 | **Local-first AI** | Inference runs on-device (llama.rn) or on your own hardware (Ollama / Jan / LM Studio / MLX) — no cloud, no API keys, no consent dialogs. |
-| **LAN Sync** | Sync instantly between your devices over Wi-Fi — no internet, no account, no third-party server. One QR code, one PIN, done. |
+| **Wi-Fi Sync** | Sync instantly between your devices over Wi-Fi — no internet, no account, no third-party server. One QR code, one one-time code, done. |
 | **BYO-Cloud** | When you want remote persistence, bring your own server: WebDAV, Nextcloud, ownCloud, or an encrypted file you move manually. |
 
 ---
@@ -25,17 +25,17 @@ There is no central database, no subscription, no proxy server. Your notes are e
 ### Interface
 - Brutalist terminal aesthetic — `border-radius: 0`, phosphor-green accents, JetBrains Mono, CRT scanlines
 - Responsive: single-column on mobile, two-panel sidebar layout on desktop (Tauri)
-- Keyboard shortcuts on desktop (`⌘N` new note, `⌘K` ask, `⌘⌫` back)
+- Keyboard shortcuts on desktop (`⌘N` new note, `⌘K` ask AI, `⌘⌫` back)
 - System tray integration on macOS / Windows / Linux
 
 ### Notes & Knowledge
 - Full SQLite database, offline-first
 - Full-text search across all notes (title + content)
-- Auto-tagging, bullet-point summaries, and semantic enrichment via AI (on save)
+- Auto-tagging, one-line summaries, and colour palette via AI (on save, optional)
 - Related notes panel using TF-IDF cosine similarity (no embeddings, no cloud)
 - Writing streak tracker, word count, sparkline activity chart
 - Daily writing prompts
-- Markdown export with YAML frontmatter (via system share sheet)
+- Markdown export with YAML frontmatter
 
 ### AI — Local-First Cascade
 
@@ -55,11 +55,9 @@ llama.rn (on-device) → Ollama / Jan / LM Studio → MLX
 
 All providers are **local-only** — note content never leaves your machine or LAN. No API keys. No consent dialogs. No cloud calls.
 
-The Ollama slot in Settings accepts any OpenAI-compatible local runtime: Ollama, Jan, LM Studio, or any other server that speaks the `/v1/chat/completions` API.
+#### On-device model picker (iOS / Android)
 
-#### On-device model picker
-
-Choose and swap the on-device GGUF model from Settings → On-Device AI. Models are downloaded once from HuggingFace and stored locally; multiple models can be downloaded simultaneously. The active model can be swapped without losing downloaded files.
+Choose and swap the on-device GGUF model from Settings → On-Device Model. Models are downloaded once from HuggingFace and stored locally; multiple models can be downloaded simultaneously. The active model can be swapped without losing downloaded files.
 
 | Model | Size | Notes |
 |---|---|---|
@@ -69,19 +67,33 @@ Choose and swap the on-device GGUF model from Settings → On-Device AI. Models 
 | **Phi-4 Mini** | 2.5 GB | Microsoft · strong reasoning · 3.8B params in a compact package |
 
 ### Voice Transcription (Whisper)
-- **On-device** (iOS / Android): Whisper Small (244 MB, downloaded once from HuggingFace `ggerganov/whisper.cpp`) — audio never leaves the device, works fully offline
-- **Desktop / Web**: unavailable — shown with a clear "macOS / iOS / Android only" notice in Settings
+
+| Platform | How it works |
+|---|---|
+| **iOS / Android** | Whisper Small (244 MB) runs entirely on the device — audio never leaves, works offline. Download once from Settings → Voice Transcription. |
+| **Desktop (Tauri)** | Connect a local Whisper-compatible server. Recording uses the system microphone via the WebView MediaRecorder API. |
+
+**Desktop setup options:**
+```bash
+# macOS Apple Silicon — whisper.cpp with Metal acceleration
+whisper.cpp --server --model ggml-small.bin --port 8000
+
+# Any platform — Docker
+docker run -p 8000:8000 fedirz/faster-whisper-server
+```
+
+Configure the server URL in Settings → Voice Transcription — Desktop. Recording always works; transcription is optional and requires the server to be running.
 
 ### Second Brain (RAG)
-Ask questions across your entire note collection via the dedicated **Second Brain** screen. TF-IDF retrieval selects the most relevant notes, builds a context window, and queries the active AI provider — no embeddings, no third-party vector store. Answers include collapsible source citations.
+Ask questions across your entire note collection via the **Second Brain** screen. TF-IDF retrieval selects the most relevant notes, builds a context window, and queries the active AI provider — no embeddings, no third-party vector store. Answers include collapsible source citations.
 
 ### Sync
 
 | Method | Details |
 |---|---|
-| **LAN Sync** | One-command sync between desktop and mobile on the same Wi-Fi — no internet, no account |
+| **Wi-Fi Sync** | One-step sync between desktop and mobile on the same Wi-Fi — no internet, no account |
 | **WebDAV / Nextcloud / ownCloud** | Push/pull of encrypted bundle, ETag-based conditional sync (skips download if unchanged) |
-| **File backup** | Export/import encrypted `.njvault` bundle manually |
+| **File backup** | Export/import encrypted backup manually |
 
 All sync methods:
 - Transfer only AES-256-GCM encrypted envelopes — the server never sees plaintext
@@ -90,14 +102,14 @@ All sync methods:
 - Last-writer-wins merge with per-note conflict detection and user-facing resolution UI
 - Delta push: skips upload if nothing changed since last sync
 
-#### LAN Sync — how it works
+#### Wi-Fi Sync — how it works
 
-1. Tap **START LAN SYNC** on the desktop — an Axum HTTP server starts on a random port, a one-time 6-character PIN is generated, and a QR code appears on screen.
-2. Tap **SCAN QR** on the mobile app — the camera reads the QR code; the device connects directly to the desktop over the local network.
+1. Tap **START WI-FI SYNC** on the desktop — an Axum HTTP server starts on a random port, a one-time 6-character code is generated, and a QR code appears on screen.
+2. Tap **SCAN QR CODE** on the mobile app — the camera reads the QR code; the device connects directly to the desktop over the local network.
 3. The mobile pulls the desktop's encrypted bundle, merges it locally, then pushes the merged result back. Both devices end up in sync in a single round-trip.
 4. The server shuts down automatically after 5 minutes or as soon as the exchange completes.
 
-**Security:** the bundle is AES-256-GCM encrypted at the application layer before it travels over HTTP. The one-time PIN uses constant-time comparison and is locked after 10 failed attempts (429). A 512 MiB body-size cap on the Axum router prevents RAM exhaustion. On iOS, `NSAllowsLocalNetworking` permits HTTP to LAN addresses. On Android, `android:usesCleartextTraffic` is set via a build-time config plugin — justified by application-layer encryption. Any QR code pointing to a non-RFC-1918 address is rejected before a single byte is sent (SSRF guard).
+**Security:** the bundle is AES-256-GCM encrypted at the application layer before it travels over HTTP. The one-time code uses constant-time comparison and is locked after 10 failed attempts (429). A 512 MiB body-size cap on the Axum router prevents RAM exhaustion. On iOS, `NSAllowsLocalNetworking` permits HTTP to LAN addresses. On Android, `android:usesCleartextTraffic` is set via a build-time config plugin — justified by application-layer encryption. Any QR code pointing to a non-RFC-1918 address is rejected before a single byte is sent (SSRF guard).
 
 ### Security
 - Vault unlock: master password (always) + optional Face ID / Fingerprint (iOS / Android)
@@ -108,7 +120,7 @@ All sync methods:
 - Sync credentials (`nj_sync_config`) stored in sessionStorage on web — not persisted across browser restarts
 - Content Security Policy locks outbound connections to model-download and local endpoints only
 - All WebDAV fetch calls use `redirect: 'manual'` to prevent credential forwarding
-- LAN sync: SSRF guard rejects QR codes pointing outside RFC-1918 / loopback; constant-time PIN; rate-limited to 10 attempts; 512 MiB body cap; 409 on concurrent PUT
+- Wi-Fi sync: SSRF guard rejects QR codes pointing outside RFC-1918 / loopback; constant-time PIN; rate-limited to 10 attempts; 512 MiB body cap; 409 on concurrent PUT
 - Link attachments from synced bundles are validated against `http/https` scheme before `Linking.openURL`
 - Attachment shapes validated after decryption (type enum + link URL scheme check)
 - Prompt injection sanitisation: NFKC normalisation, zero-width char stripping, pattern removal before AI calls
@@ -117,11 +129,11 @@ All sync methods:
 
 ## Platform Support
 
-| Platform | Status | How to run | Notes |
+| Platform | Status | How to run | Native capabilities |
 |---|---|---|---|
-| **Desktop (Tauri)** | ✅ Full | `npm run dev:tauri` | OS keychain · file pickers · tray · keyboard shortcuts · LAN sync server |
-| **iOS** | ✅ Full | EAS build or `npx expo run:ios` | llama.rn · Whisper · biometrics · camera · LAN sync QR scanner |
-| **Android** | ✅ Full | EAS build or `npx expo run:android` | llama.rn · Whisper · biometrics · camera · LAN sync QR scanner |
+| **Desktop (Tauri)** | ✅ Full | `npm run dev:tauri` | OS keychain · file pickers · tray · keyboard shortcuts · Wi-Fi sync server · voice recording |
+| **iOS** | ✅ Full | EAS build or `npx expo run:ios` | llama.rn · Whisper STT · biometrics · camera · Wi-Fi sync QR scanner · voice recording |
+| **Android** | ✅ Full | EAS build or `npx expo run:android` | llama.rn · Whisper STT · biometrics · camera · Wi-Fi sync QR scanner · voice recording |
 | **Web (browser)** | ❌ Not supported | `npm run web` | See note below |
 
 > **Web browser — not supported for end users.**
@@ -130,8 +142,8 @@ All sync methods:
 > **Other platform notes:**
 > - Ollama / Jan / LM Studio on mobile: `localhost` refers to the phone itself. Use the computer's LAN IP (e.g. `http://192.168.1.x:11434`) or Tailscale.
 > - MLX: macOS Apple Silicon only. Not available on iOS, Android, or Intel Macs.
-> - Whisper STT: iOS and Android native builds only.
-> - LAN sync server: desktop (Tauri) only. Mobile acts as client and scans the QR code. Both devices must be on the same Wi-Fi network.
+> - Whisper STT (on-device): iOS and Android native builds only. Desktop uses a local Whisper server instead.
+> - Wi-Fi sync server: desktop (Tauri) only. Mobile acts as client and scans the QR code. Both devices must be on the same Wi-Fi network.
 
 ---
 
@@ -191,15 +203,16 @@ npx expo run:ios
 | Navigation | Expo Router (file-based) |
 | Database | expo-sqlite (SQLite, on-device) |
 | Encryption | AES-256-GCM (`@noble/ciphers`) · Argon2id KDF (`@noble/hashes`) |
-| On-device LLM | llama.rn (iOS / Android) |
-| On-device STT | whisper.rn (iOS / Android) |
-| LAN sync server | Axum 0.7 (Rust, desktop only) |
+| On-device LLM | llama.rn 0.12.4 (iOS / Android) |
+| On-device STT | whisper.rn (iOS / Android) · Whisper server client (desktop) |
+| Wi-Fi sync server | Axum 0.7 (Rust, desktop only) |
 | QR generation | qrcode (desktop web renderer) |
 | QR scanning | expo-camera + CameraView (iOS / Android) |
+| Voice recording | expo-audio (all platforms) |
 | Similarity search | TF-IDF cosine similarity (no external service) |
 | State | Zustand + React Context |
 | Styling | React Native StyleSheet — JetBrains Mono, design tokens |
-| Tests | Jest + jest-expo (343 tests, 46 suites) |
+| Tests | Jest + jest-expo (355 tests, 47 suites) |
 | Type checking | TypeScript 6 (strict) |
 
 ---
@@ -211,24 +224,26 @@ app/                  Expo Router screens
   (tabs)/index.tsx    Home — note list
   brain.tsx           Second Brain — RAG chat over notes
   note/[id].tsx       Note editor
-  settings.tsx        Settings — AI, sync, security
+  settings.tsx        Settings — AI, sync, security, voice
 
 src/
   ai/                 AI providers, RAG, enrichment, TF-IDF
     providers/        openAiCompat · llamaRn
-    whisper/          Whisper STT context + model manager (native only)
-    onDevice/         llama.rn context + model manager (native only)
+    whisper/          Whisper STT context + model manager (native)
+                      whisperServerClient.ts — POST /v1/audio/transcriptions (desktop)
+    onDevice/         llama.rn context + model picker (native)
   crypto/             Vault (AES-GCM + Argon2id), biometrics, keychain
   notes/              Note model, store, search, related notes
-  sync/               WebDAV sync, LAN sync, file export/import, encrypted bundle
+  sync/               WebDAV sync, Wi-Fi sync, file export/import, encrypted bundle
     providers/        webdavSync · lanSync
   stats/              Streak, word count, sparkline, daily prompts
   design/             Design tokens, Box, T, Btn, Input components
   platform/           isTauri() / isNative() detection
   lib/                URL validation, logger, Result type
 
-src-tauri/            Rust — OS keychain IPC, system tray, file pickers, LAN sync server
+src-tauri/            Rust — OS keychain IPC, system tray, file pickers, Wi-Fi sync server
   src/lan_sync.rs     Axum HTTP server (GET/PUT /bundle), constant-time PIN, rate-limit, graceful shutdown
+  Info.plist          macOS NSMicrophoneUsageDescription for voice recording
 
 plugins/              Expo config plugins (applied at EAS / prebuild time)
   withAndroidLanNetwork.js  Sets android:usesCleartextTraffic for LAN HTTP
@@ -242,7 +257,7 @@ plugins/              Expo config plugins (applied at EAS / prebuild time)
 npm run web           # Expo web dev server (UI development only — vault unusable in browser)
 npm run dev:tauri     # Tauri desktop dev mode
 npm run build:tauri   # Tauri production build
-npm test              # Jest (343 tests, 46 suites)
+npm test              # Jest (355 tests, 47 suites)
 npm run typecheck     # tsc --noEmit
 npm run lint          # ESLint
 ```
