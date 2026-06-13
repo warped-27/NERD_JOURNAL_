@@ -152,10 +152,15 @@ All sync methods:
 ### Desktop (Tauri) — recommended starting point
 
 Requires [Rust](https://rustup.rs) and Tauri system dependencies for your OS.
+The project pins the exact Rust version in `rust-toolchain.toml` — `rustup` installs it automatically on first build.
 
 ```bash
 # macOS / Linux (one-time)
 curl https://sh.rustup.rs -sSf | sh
+
+# Windows (one-time) — download and run rustup-init.exe from rustup.rs
+# Choose "MSVC" toolchain when prompted (default). Add to PATH when asked.
+# Visual Studio Build Tools 2022+ with "Desktop development with C++" is required.
 
 # Linux — additional system deps
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
